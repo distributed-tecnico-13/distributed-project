@@ -27,11 +27,25 @@
 		<version.checkstyle-plugin>3.6.0</version.checkstyle-plugin>
 		<version.checkstyle>10.21.4</version.checkstyle>
 		<version.spotless>2.44.5</version.spotless>
+		<compiler.failOnWarning>true</compiler.failOnWarning>
 	</properties>
 
 	<build>
 		<pluginManagement>
 			<plugins>
+				<plugin>
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-compiler-plugin</artifactId>
+					<configuration>
+						<showWarnings>true</showWarnings>
+						<failOnWarning>${compiler.failOnWarning}</failOnWarning>
+						<compilerArgs>
+							<arg>-Xlint:all</arg>
+							<arg>-Xlint:-options</arg>
+							<arg>-Xlint:-processing</arg>
+						</compilerArgs>
+					</configuration>
+				</plugin>
 				<plugin>
 					<groupId>org.apache.maven.plugins</groupId>
 					<artifactId>maven-checkstyle-plugin</artifactId>

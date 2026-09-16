@@ -81,6 +81,13 @@
 				<configuration>
 					<source>${version.java}</source>
 					<target>${version.java}</target>
+					<showWarnings>true</showWarnings>
+					<failOnWarning>${compiler.failOnWarning}</failOnWarning>
+					<compilerArgs>
+						<arg>-Xlint:all</arg>
+						<arg>-Xlint:-options</arg>
+						<arg>-Xlint:-processing</arg>
+					</compilerArgs>
 				</configuration>
 			</plugin>
 			<!-- Plugin that provides two goals to execute system and Java programs -->
