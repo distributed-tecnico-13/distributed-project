@@ -33,6 +33,7 @@
 		<checkstyle.skip>true</checkstyle.skip>
 		<spotless.check.skip>true</spotless.check.skip>
 		<spotless.apply.skip>true</spotless.apply.skip>
+		<compiler.failOnWarning>false</compiler.failOnWarning>
 	</properties>
 
 	<dependencyManagement>

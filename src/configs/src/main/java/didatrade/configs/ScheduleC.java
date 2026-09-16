@@ -50,18 +50,18 @@ public class ScheduleC extends Schedule {
 
 	public Integer leader (int ballot) {
 		if (ballot < 2)
-			return new Integer (ballot);
+			return ballot;
 		else if (ballot < 5)
-			return new Integer (ballot + 1);
+			return ballot + 1;
 		else
-			return new Integer (5);
+			return 5;
 	}
 
 	public Integer quorum (int ballot) {
 		if (ballot < 2)
-			return new Integer (2);
+			return 2;
 		else
-			return new Integer (3);
+			return 3;
 	}
 
 	public boolean fastpaxos (int ballot) {

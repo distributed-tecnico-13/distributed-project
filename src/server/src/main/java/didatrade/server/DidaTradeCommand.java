@@ -1,9 +1,5 @@
 package didatrade.server;
 
-enum DidaTradeAction {
-	POPULATE, ADDUSER, BUY, SELL, BALANCE, DUMP
-};
-
 public class DidaTradeCommand {
 	private DidaTradeAction action;
 	private int user_id;

@@ -4,10 +4,10 @@ import io.grpc.stub.StreamObserver;
 
 public class CollectorStreamObserver<T> implements StreamObserver<T> {
 
-	didatrade.util.GenericResponseCollector collector;
+	GenericResponseCollector<T> collector;
 	private boolean done;
 
-	public CollectorStreamObserver(GenericResponseCollector c) {
+	public CollectorStreamObserver(GenericResponseCollector<T> c) {
 		collector = c;
 		this.done = false;
 	}
