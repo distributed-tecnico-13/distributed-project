@@ -443,18 +443,21 @@ public class DidaTradeApp {
 					} else
 						System.out.println ("usage: lenght loop-lenght");
 					break;
+				case "randomloop" :
 				case "looprandom" :
 					try {
 						this.doStuff (-1);
 					} catch (Exception e) {
 					}
 					break;
+				case "sellloop" :
 				case "loopsell" :
 					try {
 						this.doStuff (0);
 					} catch (Exception e) {
 					}
 					break;
+				case "buyloop" :
 				case "loopbuy" :
 					try {
 						this.doStuff (1);
