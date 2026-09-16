@@ -3,7 +3,7 @@ package didatrade.util;
 import java.util.ArrayList;
 
 public class GenericResponseCollector<T> {
-	private GenericResponseProcessor processor;
+	private GenericResponseProcessor<T> processor;
 	private ArrayList<T> collected_responses;
 	private int received;
 	private int pending;
@@ -17,7 +17,7 @@ public class GenericResponseCollector<T> {
 		this.done = false;
 	}
 
-	public GenericResponseCollector(ArrayList<T> responses, int maxresponses, GenericResponseProcessor p) {
+	public GenericResponseCollector(ArrayList<T> responses, int maxresponses, GenericResponseProcessor<T> p) {
 		this.processor = p;
 		this.collected_responses = responses;
 		this.received = 0;

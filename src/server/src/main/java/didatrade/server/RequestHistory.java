@@ -14,8 +14,7 @@ public class RequestHistory {
 	}
 
 	public synchronized RequestRecord getIfPending (int requestid) {
-		Integer id = new Integer (requestid);
-		return this.pending.get (id);
+		return this.pending.get (requestid);
 	}
 
 	public synchronized RequestRecord getFirstPending () {
@@ -27,30 +26,25 @@ public class RequestHistory {
 	}
 
 	public synchronized RequestRecord getIfProcessed (int requestid) {
-		Integer id = new Integer (requestid);
-		return this.processed.get (id);
+		return this.processed.get (requestid);
 	}
 
 	public synchronized RequestRecord getIfExists (int requestid) {
 		RequestRecord record;
-		Integer id = new Integer (requestid);
 
-		record = this.pending.get (id);
+		record = this.pending.get (requestid);
 		if (record == null)
-			record = this.processed.get (id);
+			record = this.processed.get (requestid);
 		return record;
 	}
 
 	public synchronized void addToPending (int requestid, RequestRecord record) {
-		Integer id = new Integer (requestid);
-
-		this.pending.put (id, record);
+		this.pending.put (requestid, record);
 	}
 
 	public synchronized RequestRecord moveToProcessed (int requestid) {
-		Integer id = new Integer (requestid);
-		RequestRecord record = this.pending.remove (id);
-		this.processed.put (id, record);
+		RequestRecord record = this.pending.remove (requestid);
+		this.processed.put (requestid, record);
 		return record;
 	}
 

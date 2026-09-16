@@ -38,11 +38,11 @@ public class ScheduleB extends Schedule {
 	public Integer leader (int ballot) {
 		int leader = ballot % 3;
 
-		return new Integer (leader);
+		return leader;
 	}
 
 	public Integer quorum (int ballot) {
-		return new Integer (2);
+		return 2;
 	}
 
 	public boolean fastpaxos (int ballot) {

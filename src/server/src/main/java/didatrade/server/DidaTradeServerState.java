@@ -13,7 +13,7 @@ import didatrade.DidaTradePaxosServiceGrpc;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 
-public class DidaTradeServerState {
+public final class DidaTradeServerState {
 	public static final int DEFAULT_POPULATION = 10;
 	int max_participants;
 	TradeManager trade_manager;

@@ -101,7 +101,7 @@ public class TradeManager {
 
 		ids = this.users.keys ();
 		while (ids.hasMoreElements ()) {
-			Integer uid = new Integer (ids.nextElement ());
+			Integer uid = ids.nextElement ();
 			User user = this.users.get (uid);
 			System.out.println ("\n\t user " + uid + " balance = " + user.getBalance () + " stock = " + user.getStock ());
 		}
