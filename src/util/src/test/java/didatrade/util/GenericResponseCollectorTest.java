@@ -8,16 +8,15 @@ import org.junit.jupiter.api.Test;
 
 class GenericResponseCollectorTest {
 
-    @Test
-    void collectsResponsesUntilQuorum() {
-        ArrayList<String> responses = new ArrayList<String>();
-        GenericResponseCollector<String> collector =
-            new GenericResponseCollector<String>(responses, 3);
+	@Test
+	void collectsResponsesUntilQuorum () {
+		ArrayList<String> responses = new ArrayList<String> ();
+		GenericResponseCollector<String> collector = new GenericResponseCollector<String> (responses, 3);
 
-        collector.addResponse("a");
-        collector.addResponse("b");
-        collector.waitForQuorum(2);
+		collector.addResponse ("a");
+		collector.addResponse ("b");
+		collector.waitForQuorum (2);
 
-        assertEquals(2, responses.size());
-    }
+		assertEquals (2, responses.size ());
+	}
 }

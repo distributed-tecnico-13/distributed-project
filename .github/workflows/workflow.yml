@@ -14,7 +14,20 @@ env:
 jobs:
   # ------------- pre-release ------------- #
 
-  #lint:
+  lint:
+    name: Lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+      - uses: actions/setup-java@v6
+        with:
+          distribution: ${{ env.JAVA_DISTRIBUTION }}
+          java-version: ${{ env.JAVA_VERSION }}
+          cache: maven
+      - name: Select contract pom
+        run: cp src/contract/intel-pom.xml src/contract/pom.xml
+      - name: Check style and formatting
+        run: mvn -B --file src/pom.xml checkstyle:check spotless:check
 
   test:
     name: Test

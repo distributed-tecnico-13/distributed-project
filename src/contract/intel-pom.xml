@@ -4,6 +4,12 @@
 	<modelVersion>4.0.0</modelVersion>
 	<!-- http://maven.apache.org/pom.html#Quick_Overview -->
 
+	<parent>
+		<groupId>dida2627</groupId>
+		<artifactId>didatrade</artifactId>
+		<version>v1</version>
+	</parent>
+
 	<groupId>dida2627</groupId>
 	<artifactId>didatrade-contract</artifactId>
 	<version>v1</version>
@@ -24,6 +30,9 @@
 		<version.grpc>1.36.0</version.grpc>
 		<version.protoc>3.12.0</version.protoc><!-- aligned with the gRPC dependency version -->
 		<version.javax.annotation-api>1.3.2</version.javax.annotation-api>
+		<checkstyle.skip>true</checkstyle.skip>
+		<spotless.check.skip>true</spotless.check.skip>
+		<spotless.apply.skip>true</spotless.apply.skip>
 	</properties>
 
 	<dependencyManagement>

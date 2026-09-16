@@ -4,6 +4,12 @@
 	<modelVersion>4.0.0</modelVersion>
 	<!-- http://maven.apache.org/pom.html#Quick_Overview -->
 
+	<parent>
+		<groupId>dida2627</groupId>
+		<artifactId>didatrade</artifactId>
+		<version>v1</version>
+	</parent>
+
 	<groupId>dida2627</groupId>
 	<artifactId>didatrade-configs</artifactId>
 	<version>v1</version>

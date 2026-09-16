@@ -1,0 +1,24 @@
+<?xml version="1.0"?>
+<!DOCTYPE module PUBLIC
+    "-//Checkstyle//DTD Checkstyle Configuration 1.3//EN"
+    "https://checkstyle.org/dtds/configuration_1_3.dtd">
+<module name="Checker">
+    <property name="charset" value="UTF-8"/>
+    <property name="severity" value="error"/>
+    <property name="fileExtensions" value="java"/>
+
+    <module name="TreeWalker">
+        <module name="UnusedImports"/>
+        <module name="RedundantImport"/>
+        <module name="EqualsHashCode"/>
+        <module name="StringLiteralEquality"/>
+        <module name="FallThrough"/>
+        <module name="UpperEll"/>
+        <module name="OuterTypeFilename"/>
+        <module name="SuppressWithNearbyCommentFilter">
+            <property name="commentFormat" value="ignore-unused-import"/>
+            <property name="checkFormat" value="UnusedImports|RedundantImport"/>
+            <property name="influenceFormat" value="0"/>
+        </module>
+    </module>
+</module>
