@@ -103,7 +103,7 @@ public class Console {
 				case "help" :
 					System.out.println ("\thelp");
 					System.out.println ("\tballot number replica");
-					System.out.println ("\tdebug mode replica");
+					System.out.println ("\tdebug <mode> <replica>");
 					System.out.println ("\texit");
 					break;
 				case "ballot" :
@@ -227,10 +227,10 @@ public class Console {
 							} else
 								System.out.println ("no reply received");
 						} catch (NumberFormatException e) {
-							System.out.println ("usage: debug mode replica");
+							System.out.println ("usage: debug <mode> <replica>");
 						}
 					} else {
-						System.out.println ("usage: debug mode replica");
+						System.out.println ("usage: debug <mode> <replica>");
 					}
 					break;
 				case "exit" :
