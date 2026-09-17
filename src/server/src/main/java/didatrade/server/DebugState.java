@@ -18,7 +18,7 @@ public class DebugState {
 				System.out.println ("DebugState: Received mode 0 - Disabling debugging");
 				blocking = false;
 				throttled = false;
-                break;
+				break;
 			case 1 :
 				System.out.println ("DebugState: Received mode 1 - Setting shouldExit = true");
 				shouldExit = true;
