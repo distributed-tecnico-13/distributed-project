@@ -34,6 +34,25 @@ public class Console {
 			this.last_ballot = ballot;
 	}
 
+	private static String debugModeName (int mode) {
+		switch (mode) {
+			case 0 :
+				return "disable all";
+			case 1 :
+				return "crash";
+			case 2 :
+				return "freeze";
+			case 3 :
+				return "un-freeze";
+			case 4 :
+				return "slow-mode-on";
+			case 5 :
+				return "slow-mode-off";
+			default :
+				return "unknown";
+		}
+	}
+
 	public void main_loop (String[] args) throws Exception {
 		int n_servers = 7;
 		int replica = 0;
@@ -104,6 +123,7 @@ public class Console {
 					System.out.println ("\thelp");
 					System.out.println ("\tballot <number> <replica>");
 					System.out.println ("\tdebug <mode> <replica>");
+					System.out.println ("\t  0 no-op, 1 crash, 2 freeze, 3 un-freeze, 4 slow-mode-on, 5 slow-mode-off");
 					System.out.println ("\texit");
 					break;
 				case "ballot" :
@@ -205,7 +225,7 @@ public class Console {
 						try {
 							mode = Integer.parseInt (parameter1);
 							replica = Integer.parseInt (parameter2);
-							System.out.println ("setting debug with mode " + mode + " on replica " + replica);
+							System.out.println ("setting debug with mode " + mode + " (" + debugModeName (mode) + ") on replica " + replica);
 
 							sequence_number = sequence_number + 1;
 							int reqid = sequence_number * 100 + client_id;
