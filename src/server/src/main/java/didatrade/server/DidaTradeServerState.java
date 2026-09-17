@@ -110,7 +110,7 @@ public final class DidaTradeServerState {
 
 	public synchronized void updateCompletedBallot (int ballot) {
 		// WARNING: THIS ONLY WORKS FOR CONFIGURATIONS WHERE THERE IS NO NEED FOR STATE-TRANSFER!!!!!
-		// NEEDS TO BE UPDATE FOR THE PROJECT
+		// TODO: NEEDS TO BE UPDATE FOR THE PROJECT
 
 		ballot = this.findMaxDecidedBallot ();
 		if (ballot > this.completed_ballot)
