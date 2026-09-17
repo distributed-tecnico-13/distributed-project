@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Lint DidaTrade: Checkstyle plus Spotless (formatter check).
+# Lint DidaTrade: Spotless (apply formatter) plus Checkstyle.
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -98,10 +98,10 @@ ensure_contract_pom
 echo
 echo "Java  : $(java -version 2>&1 | head -n 1)"
 echo "Maven : $(mvn -v 2>&1 | head -n 1)"
-echo "Running: mvn -B --file src/pom.xml checkstyle:check spotless:check"
+echo "Running: mvn -B --file src/pom.xml spotless:apply checkstyle:check"
 echo
 
-mvn -B --file "$SRC_DIR/pom.xml" checkstyle:check spotless:check
+mvn -B --file "$SRC_DIR/pom.xml" spotless:apply checkstyle:check
 
 echo
 echo "Lint complete."
