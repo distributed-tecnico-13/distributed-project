@@ -28,6 +28,9 @@ public class DidaTradePaxosServiceImpl extends DidaTradePaxosServiceGrpc.DidaTra
 
 		int instance = request.getInstance ();
 		int ballot = request.getRequestballot ();
+
+		this.server_state.applyDebugState ();
+
 		PaxosInstance entry = this.server_state.paxos_log.testAndSetEntry (instance, ballot);
 		boolean accepted = false;
 		int value = entry.command_id;
@@ -67,6 +70,9 @@ public class DidaTradePaxosServiceImpl extends DidaTradePaxosServiceGrpc.DidaTra
 
 		int instance = request.getInstance ();
 		int ballot = request.getRequestballot ();
+
+		this.server_state.applyDebugState ();
+
 		int value = request.getValue ();
 		PaxosInstance entry = this.server_state.paxos_log.testAndSetEntry (instance);
 		boolean accepted = false;
@@ -131,6 +137,8 @@ public class DidaTradePaxosServiceImpl extends DidaTradePaxosServiceGrpc.DidaTra
 		int instance = request.getInstance ();
 		int ballot = request.getBallot ();
 		int value = request.getValue ();
+
+		this.server_state.applyDebugState ();
 
 		synchronized (this) {
 			PaxosInstance entry = this.server_state.paxos_log.testAndSetEntry (instance);

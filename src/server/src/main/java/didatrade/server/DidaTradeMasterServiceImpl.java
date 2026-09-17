@@ -76,7 +76,7 @@ public class DidaTradeMasterServiceImpl extends DidaTradeMasterServiceGrpc.DidaT
 		this.server_state.setDebugMode (request.getMode ());
 
 		// for debug purposes
-		System.out.println ("Setting debug mode to = " + this.server_state.getDebugMode ());
+		// System.out.println ("Setting debug mode to = " + this.server_state.getDebugMode ());
 
 		DidaTradeMaster.SetDebugReply.Builder response_builder = DidaTradeMaster.SetDebugReply.newBuilder ();
 		response_builder.setReqid (request_id);

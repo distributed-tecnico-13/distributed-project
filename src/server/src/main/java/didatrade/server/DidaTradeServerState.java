@@ -31,7 +31,7 @@ public final class DidaTradeServerState {
 
 	private int current_ballot;
 	private int completed_ballot;
-	private int debug_mode;
+	private DebugState debug_state;
 	private boolean fastpaxos_on;
 
 	MainLoop main_loop;
@@ -42,7 +42,7 @@ public final class DidaTradeServerState {
 		this.scheduler = new ConfigurationScheduler (schedule);
 		this.base_port = port;
 		this.my_id = myself;
-		this.debug_mode = 0;
+		this.debug_state = new DebugState ();
 		this.fastpaxos_on = false;
 		this.current_ballot = 0;
 		this.completed_ballot = -1;
@@ -142,12 +142,15 @@ public final class DidaTradeServerState {
 		this.fastpaxos_on = mode;
 	}
 
-	public synchronized int getDebugMode () {
-		return this.debug_mode;
+	public synchronized DebugState getDebugState () {
+		return this.debug_state;
 	}
 
-	public synchronized void setDebugMode (int mode) {
-		this.debug_mode = mode;
+	public void applyDebugState () {
+		this.debug_state.apply ();
 	}
 
+	public void setDebugMode (int mode) {
+		this.debug_state.setDebugMode (mode);
+	}
 }
