@@ -25,6 +25,8 @@ public class DidaTradeMainServiceImpl extends DidaTradeMainServiceGrpc.DidaTrade
 		// for debug purposes
 		System.out.println ("reqid " + reqid + " quantity " + quantity);
 
+		this.server_state.applyDebugState ();
+
 		DidaTradeCommand command = new DidaTradeCommand (DidaTradeAction.POPULATE, 0, quantity);
 
 		// for debug purposes
@@ -61,6 +63,8 @@ public class DidaTradeMainServiceImpl extends DidaTradeMainServiceGrpc.DidaTrade
 		// for debug purposes
 		System.out.println ("Adding add request with reqid " + reqid + " to pending");
 
+		this.server_state.applyDebugState ();
+
 		RequestRecord request_record = new RequestRecord (reqid, command);
 		this.server_state.req_history.addToPending (reqid, request_record);
 		this.server_state.main_loop.wakeup ();
@@ -85,6 +89,8 @@ public class DidaTradeMainServiceImpl extends DidaTradeMainServiceGrpc.DidaTrade
 
 		// for debug purposes
 		System.out.println ("reqid " + reqid + " userid " + uid + " quantity " + quantity);
+
+		this.server_state.applyDebugState ();
 
 		DidaTradeCommand command = new DidaTradeCommand (DidaTradeAction.BUY, uid, quantity);
 
@@ -122,6 +128,8 @@ public class DidaTradeMainServiceImpl extends DidaTradeMainServiceGrpc.DidaTrade
 		// for debug purposes
 		System.out.println ("Adding sell request with reqid " + reqid + " to pending");
 
+		this.server_state.applyDebugState ();
+
 		RequestRecord request_record = new RequestRecord (reqid, command);
 		this.server_state.req_history.addToPending (reqid, request_record);
 		this.server_state.main_loop.wakeup ();
@@ -148,6 +156,8 @@ public class DidaTradeMainServiceImpl extends DidaTradeMainServiceGrpc.DidaTrade
 		System.out.println ("reqid " + reqid + " userid " + uid);
 
 		DidaTradeCommand command = new DidaTradeCommand (DidaTradeAction.BALANCE, uid);
+
+		this.server_state.applyDebugState ();
 
 		// for debug purposes
 		System.out.println ("Adding balance request with reqid " + reqid + " to pending");
@@ -181,6 +191,8 @@ public class DidaTradeMainServiceImpl extends DidaTradeMainServiceGrpc.DidaTrade
 
 		// for debug purposes
 		System.out.println ("Adding dump request with reqid " + reqid + " to pending");
+
+		this.server_state.applyDebugState ();
 
 		RequestRecord request_record = new RequestRecord (reqid, command);
 		this.server_state.req_history.addToPending (reqid, request_record);
