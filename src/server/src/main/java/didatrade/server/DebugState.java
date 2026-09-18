@@ -1,8 +1,8 @@
 package didatrade.server;
 public class DebugState {
-	private boolean throttled;
-	private boolean blocking;
-	private boolean shouldExit;
+	private volatile boolean throttled;
+	private volatile boolean blocking;
+	private volatile boolean shouldExit;
 
 	public static final int MAX_THROTTLE_DELAY = 3000;
 
@@ -55,7 +55,7 @@ public class DebugState {
 
 	public void applyBlocking () {
 		synchronized (this) {
-			while (isBlocking () && !shouldExit ()) {
+			while (isBlocking ()) {
 				try {
 					System.out.println ("Waiting in debug mode 2");
 					this.wait ();
@@ -84,21 +84,12 @@ public class DebugState {
 	public boolean isThrottled () {
 		return throttled;
 	}
-	public void setThrottled (boolean throttled) {
-		this.throttled = throttled;
-	}
 
 	public boolean isBlocking () {
 		return blocking;
 	}
-	public void setBlocking (boolean blocking) {
-		this.blocking = blocking;
-	}
 
 	public boolean shouldExit () {
 		return shouldExit;
-	}
-	public void setShouldExit (boolean shouldExit) {
-		this.shouldExit = shouldExit;
 	}
 }
