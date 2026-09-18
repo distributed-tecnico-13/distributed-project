@@ -44,7 +44,8 @@ public class DidaTradeServer {
 		final BindableService paxos_impl = new DidaTradePaxosServiceImpl (server_state);
 
 		// Create a new server to listen on port.
-		Server server = ServerBuilder.forPort (port).addService (service_impl).addService (master_impl).addService (paxos_impl).build ();
+		Server server = ServerBuilder.forPort (port).addService (service_impl).addService (master_impl).addService (paxos_impl)
+				.intercept (new DebugExitInterceptor (server_state)).build ();
 		// Start the server.
 		server.start ();
 		// Server threads are running in the background.

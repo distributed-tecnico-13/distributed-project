@@ -85,6 +85,5 @@ public class DidaTradeMasterServiceImpl extends DidaTradeMasterServiceGrpc.DidaT
 		DidaTradeMaster.SetDebugReply response = response_builder.build ();
 		responseObserver.onNext (response);
 		responseObserver.onCompleted ();
-		this.server_state.getDebugState ().applyExit ();
 	}
 }
