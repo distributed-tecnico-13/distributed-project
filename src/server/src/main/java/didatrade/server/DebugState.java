@@ -18,6 +18,7 @@ public class DebugState {
 				System.out.println ("DebugState: Received mode 0 - Disabling debugging");
 				blocking = false;
 				throttled = false;
+				shouldExit = false;
 				break;
 			case 1 :
 				System.out.println ("DebugState: Received mode 1 - Setting shouldExit = true");
@@ -47,16 +48,12 @@ public class DebugState {
 	}
 
 	public void apply () {
-		if (shouldExit ()) {
-			System.out.println ("Exiting because of debug mode");
-			System.exit (0);
-		}
-		if (isThrottled ()) {
-			try {
-				Thread.sleep ((long) (Math.random () * DebugState.MAX_THROTTLE_DELAY));
-			} catch (InterruptedException e) {
-			}
-		}
+		applyExit ();
+		applyThrottle ();
+		applyBlocking ();
+	}
+
+	public void applyBlocking () {
 		synchronized (this) {
 			while (isBlocking () && !shouldExit ()) {
 				try {
@@ -65,6 +62,22 @@ public class DebugState {
 				} catch (InterruptedException e) {
 				}
 			}
+		}
+	}
+
+	public void applyThrottle () {
+		if (isThrottled ()) {
+			try {
+				Thread.sleep ((long) (Math.random () * DebugState.MAX_THROTTLE_DELAY));
+			} catch (InterruptedException e) {
+			}
+		}
+	}
+
+	public void applyExit () {
+		if (shouldExit ()) {
+			System.out.println ("Exiting because of debug mode");
+			System.exit (0);
 		}
 	}
 
