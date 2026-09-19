@@ -73,8 +73,14 @@ public class PhaseOneResponseProcessor
 		if (!this.responders.add (server_id))
 			return false;
 
-		if (!last_response.getAccepted ())
-			return false;
+		if (!last_response.getAccepted ()) {
+                        this.accepted = false;
+
+                        if (last_response.getMaxballot () > this.maxballot)
+                                this.maxballot = last_response.getMaxballot ();
+
+                        return true;
+                }
 
 		this.responses++;
 
