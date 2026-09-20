@@ -82,6 +82,11 @@ public class PhaseOneResponseProcessor
 			return true;
 		}
 
+		if (last_response.getValballot () > this.valballot) {
+			this.valballot = last_response.getValballot ();
+			this.value = last_response.getValue ();
+		}
+
 		this.responses++;
 
 		if (this.responses >= this.quorum) {
