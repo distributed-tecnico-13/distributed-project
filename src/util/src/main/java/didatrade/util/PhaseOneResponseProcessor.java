@@ -74,13 +74,13 @@ public class PhaseOneResponseProcessor
 			return false;
 
 		if (!last_response.getAccepted ()) {
-                        this.accepted = false;
+			this.accepted = false;
 
-                        if (last_response.getMaxballot () > this.maxballot)
-                                this.maxballot = last_response.getMaxballot ();
+			if (last_response.getMaxballot () > this.maxballot)
+				this.maxballot = last_response.getMaxballot ();
 
-                        return true;
-                }
+			return true;
+		}
 
 		this.responses++;
 
