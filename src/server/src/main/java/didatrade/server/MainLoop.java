@@ -8,7 +8,7 @@ import didatrade.DidaTradePaxosServiceGrpc;
 
 import didatrade.util.GenericResponseCollector;
 import didatrade.util.CollectorStreamObserver;
-import didatrade.util.PhaseOneBogusProcessor;
+import didatrade.util.PhaseOneResponseProcessor;
 import didatrade.util.PhaseTwoResponseProcessor;
 
 import didatrade.configs.ConfigurationScheduler; // ignore-unused-import
@@ -133,8 +133,7 @@ public class MainLoop implements Runnable {
 		int low_ballot = Math.max (completed_ballot, 0);
 		int high_ballot = ballot;
 
-		// PhaseOneResponseProcessor phase_one_processor = new PhaseOneResponseProcessor(this.server_state.scheduler, low_ballot, high_ballot);
-		PhaseOneBogusProcessor phase_one_processor = new PhaseOneBogusProcessor (this.server_state.scheduler, low_ballot, high_ballot);
+		PhaseOneResponseProcessor phase_one_processor = new PhaseOneResponseProcessor (this.server_state.scheduler, low_ballot, high_ballot);
 
 		ArrayList<DidaTradePaxos.PhaseOneReply> phase_one_responses = new ArrayList<DidaTradePaxos.PhaseOneReply> ();
 		GenericResponseCollector<DidaTradePaxos.PhaseOneReply> phase_one_collector = new GenericResponseCollector<DidaTradePaxos.PhaseOneReply> (phase_one_responses,
@@ -154,8 +153,9 @@ public class MainLoop implements Runnable {
 			int maxballot = phase_one_processor.getMaxballot ();
 			if (maxballot > this.server_state.getCurrentBallot ())
 				this.server_state.setCurrentBallot (maxballot);
-		} else if (phase_one_processor.getValballot () > -1)
+		} else if (phase_one_processor.getValballot () > -1) {
 			phase_two_value = phase_one_processor.getValue ();
+		}
 
 		System.out.println (
 				"Paxos phase 1 ended with aborted = " + ballot_aborted + " and read ballot = " + phase_one_processor.getValballot () + " and value " + phase_two_value);
