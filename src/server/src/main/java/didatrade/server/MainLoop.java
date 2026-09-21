@@ -146,21 +146,24 @@ public class MainLoop implements Runnable {
 
 		phase_one_collector.waitUntilDone ();
 
-		int phase_two_value = proposed_value;
-		boolean ballot_aborted = false;
-		if (phase_one_processor.getAccepted () == false) {
-			ballot_aborted = true;
-			int maxballot = phase_one_processor.getMaxballot ();
-			if (maxballot > this.server_state.getCurrentBallot ())
-				this.server_state.setCurrentBallot (maxballot);
-		} else if (phase_one_processor.getValballot () > -1) {
-			phase_two_value = phase_one_processor.getValue ();
-		}
+		PhaseOneResult result = evaluatePhaseOneResult (phase_one_processor, proposed_value);
+		if (result.aborted && result.maxballot > this.server_state.getCurrentBallot ())
+			this.server_state.setCurrentBallot (result.maxballot);
 
 		System.out.println (
-				"Paxos phase 1 ended with aborted = " + ballot_aborted + " and read ballot = " + phase_one_processor.getValballot () + " and value " + phase_two_value);
+				"Paxos phase 1 ended with aborted = " + result.aborted + " and read ballot = " + phase_one_processor.getValballot () + " and value " + result.value);
 
-		return new PhaseOneResult (ballot_aborted, phase_two_value);
+		return result;
+	}
+
+	static PhaseOneResult evaluatePhaseOneResult (PhaseOneResponseProcessor processor, int proposed_value) {
+		boolean ballot_aborted = !processor.getAccepted ();
+		int phase_two_value = proposed_value;
+
+		if (!ballot_aborted && processor.getValballot () > -1)
+			phase_two_value = processor.getValue ();
+
+		return new PhaseOneResult (ballot_aborted, phase_two_value, processor.getMaxballot ());
 	}
 
 	private boolean runPhaseTwo (int entry_number, int ballot, int phase_two_value, List<Integer> acceptors, int n_acceptors, int quorum) {
@@ -233,13 +236,15 @@ public class MainLoop implements Runnable {
 		return result;
 	}
 
-	private static class PhaseOneResult {
+	static class PhaseOneResult {
 		final boolean aborted;
 		final int value;
+		final int maxballot;
 
-		PhaseOneResult(boolean aborted, int value) {
+		PhaseOneResult(boolean aborted, int value, int maxballot) {
 			this.aborted = aborted;
 			this.value = value;
+			this.maxballot = maxballot;
 		}
 	}
 }
