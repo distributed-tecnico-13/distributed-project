@@ -26,22 +26,28 @@ public class DidaTradePaxosServiceImpl extends DidaTradePaxosServiceGrpc.DidaTra
 	public void phaseone (DidaTradePaxos.PhaseOneRequest request, StreamObserver<DidaTradePaxos.PhaseOneReply> responseObserver) {
 		// System.out.println("Receive phase1 request: \n" + request);
 
-		int instance = request.getInstance ();
+		int minInstance = request.getMinInstance ();
 		int ballot = request.getRequestballot ();
 
 		this.server_state.applyDebugState ();
 
-		PaxosInstance entry = this.server_state.paxos_log.testAndSetEntry (instance, ballot);
-		PaxosInstance.PhaseOneState phase_one = this.server_state.processPhaseOne (entry, ballot);
+		PaxosInstance[] entries = this.server_state.paxos_log.getAcceptedEntries (minInstance);
+
+		DidaTradeServerState.PhaseOneState phase_one = this.server_state.processPhaseOne (ballot);
 
 		DidaTradePaxos.PhaseOneReply.Builder response_builder = DidaTradePaxos.PhaseOneReply.newBuilder ();
-		response_builder.setInstance (instance);
+		response_builder.setMinInstance (minInstance);
 		response_builder.setServerid (this.server_state.my_id);
 		response_builder.setRequestballot (ballot);
 		response_builder.setAccepted (phase_one.accepted);
-		response_builder.setValue (phase_one.value);
-		response_builder.setValballot (phase_one.valballot);
 		response_builder.setMaxballot (phase_one.maxballot);
+		response_builder.addAllResponseLogObjects (
+				Arrays.stream (entries).map (entry -> DidaTradePaxos.PhaseOneResponseLogObject.newBuilder ()
+						.setInstance (entry.getInstanceNb ())
+						.setValue (entry.getAcceptedValue ())
+						.setValballot (entry.getWriteBallot ())
+						.build ())
+						.toList ());
 
 		DidaTradePaxos.PhaseOneReply response = response_builder.build ();
 

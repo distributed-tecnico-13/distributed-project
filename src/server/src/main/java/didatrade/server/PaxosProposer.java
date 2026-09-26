@@ -1,7 +1,9 @@
 package didatrade.server;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import didatrade.DidaTradePaxos;
@@ -10,7 +12,7 @@ import didatrade.util.GenericResponseCollector;
 import didatrade.util.PhaseOneResponseProcessor;
 import didatrade.util.PhaseTwoResponseProcessor;
 
-/** One Paxos attempt for a slot already claimed by MainLoop. */
+/** Phase 1 once per ballot, then one Phase 2 attempt for a slot MainLoop has claimed. */
 final class PaxosProposer {
 	static final long RETRY_DELAY_MILLIS = 200;
 	static final long RPC_TIMEOUT_SECONDS = 5;
@@ -21,45 +23,52 @@ final class PaxosProposer {
 		this.server_state = state;
 	}
 
+	// Returns whether this server may still propose. A failed prepare does not open Phase 2.
+	boolean prepare (int ballot) {
+		if (!this.server_state.canProposeFor (ballot))
+			return false;
+		if (this.server_state.hasRunPhaseOne ())
+			return true;
+
+		int min_instance = this.server_state.paxos_log.getMinUndecidedInstance ();
+		List<Integer> acceptors = this.server_state.scheduler.acceptors (ballot);
+		PhaseOneResult phase_one = this.runPhaseOne (
+				acceptors, acceptors.size (), ballot, min_instance);
+		if (phase_one.aborted)
+			return false;
+
+		// TODO: Propose a noop for each hole at or above min_instance that no acceptor returned.
+		for (int instance : phase_one.instances ())
+			this.server_state.paxos_log.adopt (instance, phase_one.commandFor (instance));
+		this.server_state.setRanPhaseOne (true);
+		return true;
+	}
+
 	void propose (PaxosInstance entry, int ballot) {
 		try {
 			if (entry.isDecided () || !this.server_state.canProposeFor (ballot))
 				return;
-			int instance = entry.instance_nb;
-			int proposed_value = entry.getProposedRequestId ();
-			List<Integer> acceptors = this.server_state.scheduler.acceptors (ballot);
-			int n_acceptors = acceptors.size ();
-			int completed_ballot = this.server_state.getCompletedBallot ();
-
-			PhaseOneResult phase_one = this.runPhaseOne (
-					instance, ballot, completed_ballot, acceptors, n_acceptors, proposed_value);
-			// A sibling worker can advance the shared ballot while Phase 1 is in flight.
-			if (phase_one.aborted || entry.isDecided ()
-					|| !this.server_state.canProposeFor (ballot))
-				return;
-
-			int phase_two_value = entry.phaseTwoValueFor (ballot, phase_one.value);
+			int instance = entry.getInstanceNb ();
+			int phase_two_value = entry.phaseTwoValueFor (ballot, entry.getProposedRequestId ());
 			this.server_state.paxos_log.replaceProposedRequestId (instance, phase_two_value);
+			List<Integer> acceptors = this.server_state.scheduler.acceptors (ballot);
 			if (this.runPhaseTwo (instance, ballot, phase_two_value, acceptors,
-					n_acceptors, this.server_state.scheduler.quorum (ballot)))
+					acceptors.size (), this.server_state.scheduler.quorum (ballot)))
 				return;
 
-			if (entry.decide (ballot, phase_two_value)) {
+			if (entry.decide (ballot, phase_two_value))
 				this.server_state.setCompletedBallot (ballot);
-			}
 		} finally {
 			entry.releaseClaim (ballot, TimeUnit.MILLISECONDS.toNanos (RETRY_DELAY_MILLIS));
 		}
 	}
 
 	private PhaseOneResult runPhaseOne (
-			int instance, int ballot, int completed_ballot,
-			List<Integer> acceptors, int n_acceptors, int proposed_value) {
+			List<Integer> acceptors, int n_acceptors, int ballot, int min_instance) {
 		DidaTradePaxos.PhaseOneRequest request = DidaTradePaxos.PhaseOneRequest
-				.newBuilder ().setInstance (instance).setRequestballot (ballot).build ();
-		int low_ballot = Math.max (completed_ballot, 0);
+				.newBuilder ().setMinInstance (min_instance).setRequestballot (ballot).build ();
 		PhaseOneResponseProcessor processor = new PhaseOneResponseProcessor (
-				this.server_state.scheduler, low_ballot, ballot);
+				this.server_state.scheduler, ballot);
 		ArrayList<DidaTradePaxos.PhaseOneReply> responses = new ArrayList<> ();
 		GenericResponseCollector<DidaTradePaxos.PhaseOneReply> collector = new GenericResponseCollector<> (
 				responses, n_acceptors, processor);
@@ -72,20 +81,13 @@ final class PaxosProposer {
 		}
 		collector.waitUntilDone ();
 
-		PhaseOneResult result = evaluatePhaseOneResult (processor, proposed_value);
+		PhaseOneResult result = new PhaseOneResult (processor);
 		if (result.aborted && result.maxballot > this.server_state.getCurrentBallot ()) {
 			this.server_state.setCurrentBallot (result.maxballot);
+			if (this.server_state.main_loop != null)
+				this.server_state.main_loop.wakeup ();
 		}
 		return result;
-	}
-
-	static PhaseOneResult evaluatePhaseOneResult (
-			PhaseOneResponseProcessor processor, int proposed_value) {
-		boolean aborted = !processor.getAccepted ();
-		int value = proposed_value;
-		if (!aborted && processor.getValballot () > -1)
-			value = processor.getValue ();
-		return new PhaseOneResult (aborted, value, processor.getMaxballot ());
 	}
 
 	private boolean runPhaseTwo (
@@ -112,19 +114,34 @@ final class PaxosProposer {
 			return false;
 		if (processor.getMaxballot () > this.server_state.getCurrentBallot ()) {
 			this.server_state.setCurrentBallot (processor.getMaxballot ());
+			this.server_state.setRanPhaseOne (false);
+			if (this.server_state.main_loop != null)
+				this.server_state.main_loop.wakeup ();
 		}
 		return true;
 	}
 
 	static final class PhaseOneResult {
 		final boolean aborted;
-		final int value;
 		final int maxballot;
+		private final int[] instances;
+		private final Map<Integer, Integer> commands;
 
-		PhaseOneResult(boolean aborted, int value, int maxballot) {
-			this.aborted = aborted;
-			this.value = value;
-			this.maxballot = maxballot;
+		PhaseOneResult(PhaseOneResponseProcessor processor) {
+			this.aborted = !processor.getAccepted ();
+			this.maxballot = processor.getMaxballot ();
+			this.instances = processor.instances ();
+			this.commands = new HashMap<> ();
+			for (int instance : this.instances)
+				this.commands.put (instance, processor.commandFor (instance));
+		}
+
+		int[] instances () {
+			return this.instances.clone ();
+		}
+
+		int commandFor (int instance) {
+			return this.commands.get (instance);
 		}
 	}
 }
