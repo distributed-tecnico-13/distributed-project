@@ -85,6 +85,17 @@ class PaxosPipelineTest {
 	}
 
 	@Test
+	void adoptsCommandAlreadyBoundToAnInstance () {
+		PaxosLog log = new PaxosLog ();
+		assertTrue (log.adopt (5, 301));
+
+		assertEquals (301, log.getEntry (5).getProposedRequestId ());
+		assertTrue (log.adopt (5, 301));
+		assertFalse (log.adopt (5, 302));
+		assertFalse (log.adopt (6, 301));
+	}
+
+	@Test
 	void claimedSlotCannotBeTakenEvenAfterAnyRetryDeadline () {
 		PaxosInstance entry = new PaxosInstance (0);
 		entry.setProposedRequestId (100);

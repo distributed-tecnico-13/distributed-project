@@ -60,9 +60,45 @@ public class PaxosLog {
 		return entry;
 	}
 
+	// Binds a command Phase 1 already accepted. A later fresh request cannot reuse the slot.
+	public synchronized boolean adopt (int instance, int request_id) {
+		PaxosInstance entry = this.log.get (instance);
+		if (entry != null && entry.getProposedRequestId () >= 0)
+			return entry.getProposedRequestId () == request_id;
+		if (this.isRequestAssigned (request_id))
+			return false;
+		if (entry == null)
+			entry = this.testAndSetEntry (instance);
+		entry.setProposedRequestId (request_id);
+		return true;
+	}
+
 	public synchronized void replaceProposedRequestId (int position, int request_id) {
 		PaxosInstance entry = this.log.get (position);
 		if (entry != null)
 			entry.setProposedRequestId (request_id);
+	}
+
+	public synchronized PaxosInstance[] getAcceptedEntries (int minInstance) {
+		return this.log.entrySet ().stream ()
+				.filter (e -> e.getKey () >= minInstance && e.getValue ().isAccepted ())
+				.map (entry -> entry.getValue ())
+				.toArray (PaxosInstance[]::new);
+	}
+
+	public synchronized int getMinUndecidedInstance () {
+		return this.log.entrySet ().stream ()
+				.filter (e -> !e.getValue ().isDecided ())
+				.map (entry -> entry.getKey ())
+				.min (Integer::compareTo)
+				.orElse (-1);
+	}
+
+	private boolean isRequestAssigned (int request_id) {
+		for (PaxosInstance candidate : this.log.values ()) {
+			if (candidate.getUnexecutedRequestId () == request_id)
+				return true;
+		}
+		return false;
 	}
 }

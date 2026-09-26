@@ -6,15 +6,15 @@ import java.util.Map;
 import java.util.Set;
 
 public class PaxosInstance {
-	int instance_nb;
+	private int instance_nb;
 	private int command_id;
-	int read_ballot;
+	private int read_ballot;
 	private int write_ballot;
 	private int accepted_value;
 	private int accept_ballot;
 	private final Map<Integer, LearnVotes> learn_votes = new HashMap<> ();
 	private boolean decided;
-	boolean value_is_locked;
+	private boolean value_is_locked;
 	private boolean executed;
 	// This server's attempt to propose the slot.
 	private final LocalProposal proposal = new LocalProposal ();
@@ -55,6 +55,22 @@ public class PaxosInstance {
 		this.accepted_value = value;
 		this.write_ballot = ballot;
 		return true;
+	}
+
+	public synchronized boolean isAccepted () {
+		return this.write_ballot > -1;
+	}
+
+	public synchronized int getInstanceNb () {
+		return this.instance_nb;
+	}
+
+	public synchronized int getAcceptedValue () {
+		return this.accepted_value;
+	}
+
+	public synchronized int getWriteBallot () {
+		return this.write_ballot;
 	}
 
 	public synchronized boolean recordLearn (

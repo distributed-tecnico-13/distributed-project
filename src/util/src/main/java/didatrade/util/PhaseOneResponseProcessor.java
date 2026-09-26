@@ -1,7 +1,9 @@
 package didatrade.util;
 
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.HashSet;
+import java.util.Map;
 import java.util.Set;
 
 import didatrade.DidaTradePaxos;
@@ -12,7 +14,6 @@ public class PhaseOneResponseProcessor
 			GenericResponseProcessor<DidaTradePaxos.PhaseOneReply> {
 
 	private final ConfigurationScheduler scheduler;
-	private final int low_ballot;
 	private final int high_ballot;
 
 	private final int quorum;
@@ -20,15 +21,13 @@ public class PhaseOneResponseProcessor
 	private final Set<Integer> responders;
 
 	private boolean accepted;
-	private int responses;
+	private int response_count;
+	private final Map<Integer, InstanceResponse> responses_per_instance;
 
-	private int value;
-	private int valballot;
 	private int maxballot;
 
-	public PhaseOneResponseProcessor(ConfigurationScheduler s, int l, int h) {
+	public PhaseOneResponseProcessor(ConfigurationScheduler s, int h) {
 		this.scheduler = s;
-		this.low_ballot = l;
 		this.high_ballot = h;
 
 		this.quorum = this.scheduler.quorum (this.high_ballot);
@@ -38,10 +37,9 @@ public class PhaseOneResponseProcessor
 		this.responders = new HashSet<> ();
 
 		this.accepted = false;
-		this.responses = 0;
+		this.response_count = 0;
+		this.responses_per_instance = new HashMap<Integer, InstanceResponse> ();
 
-		this.value = -1;
-		this.valballot = -1;
 		this.maxballot = -1;
 	}
 
@@ -49,16 +47,29 @@ public class PhaseOneResponseProcessor
 		return this.accepted;
 	}
 
-	public int getValue () {
-		return this.value;
-	}
-
-	public int getValballot () {
-		return this.valballot;
-	}
-
 	public int getMaxballot () {
 		return this.maxballot;
+	}
+
+	public synchronized int[] instances () {
+		return this.responses_per_instance.keySet ().stream ()
+				.mapToInt (Integer::intValue)
+				.sorted ()
+				.toArray ();
+	}
+
+	public synchronized int commandFor (int instance) {
+		InstanceResponse response = this.responses_per_instance.get (instance);
+		if (response == null)
+			return -1;
+		return response.getValue ();
+	}
+
+	public synchronized int ballotFor (int instance) {
+		InstanceResponse response = this.responses_per_instance.get (instance);
+		if (response == null)
+			return -1;
+		return response.getBallot ();
 	}
 
 	public synchronized boolean onNext (
@@ -82,14 +93,20 @@ public class PhaseOneResponseProcessor
 			return true;
 		}
 
-		if (last_response.getValballot () > this.valballot) {
-			this.valballot = last_response.getValballot ();
-			this.value = last_response.getValue ();
+		for (DidaTradePaxos.PhaseOneResponseLogObject response : last_response.getResponseLogObjectsList ()) {
+			InstanceResponse instance_response = this.responses_per_instance.get (response.getInstance ());
+			if (instance_response == null) {
+				instance_response = new InstanceResponse (response.getValballot (), response.getValue ());
+				this.responses_per_instance.put (response.getInstance (), instance_response);
+			} else if (instance_response.getBallot () < response.getValballot ()) {
+				instance_response.setBallot (response.getValballot ());
+				instance_response.setValue (response.getValue ());
+			}
 		}
 
-		this.responses++;
+		this.response_count++;
 
-		if (this.responses >= this.quorum) {
+		if (this.response_count >= this.quorum) {
 			this.accepted = true;
 			return true;
 		}

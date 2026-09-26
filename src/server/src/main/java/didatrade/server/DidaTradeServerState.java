@@ -33,6 +33,7 @@ public final class DidaTradeServerState {
 	private int completed_ballot;
 	private DebugState debug_state;
 	private boolean fastpaxos_on;
+	private boolean wasLeaderAndRanPhaseOne;
 
 	MainLoop main_loop;
 	Thread main_loop_worker;
@@ -49,6 +50,7 @@ public final class DidaTradeServerState {
 		this.req_history = new RequestHistory ();
 		this.paxos_log = new PaxosLog ();
 		this.main_loop = new MainLoop (this);
+		this.wasLeaderAndRanPhaseOne = false;
 
 		// populate manager
 		this.trade_manager.populate (DEFAULT_POPULATION);
@@ -88,10 +90,11 @@ public final class DidaTradeServerState {
 	}
 
 	public synchronized boolean canProposeFor (int ballot) {
-		if (ballot < 0)
-			return false;
-		return canProposeFor (ballot, this.current_ballot,
+		boolean can_propose = ballot >= 0 && canProposeFor (ballot, this.current_ballot,
 				this.scheduler.leader (ballot), this.my_id);
+		if (!can_propose)
+			this.wasLeaderAndRanPhaseOne = false;
+		return can_propose;
 	}
 
 	static boolean canProposeFor (
@@ -112,6 +115,13 @@ public final class DidaTradeServerState {
 		if (accepted)
 			this.current_ballot = ballot;
 		return entry.phaseOneState (accepted, ballot, this.current_ballot);
+	}
+
+	public synchronized PhaseOneState processPhaseOne (int ballot) {
+		boolean accepted = ballot >= this.current_ballot;
+		if (accepted)
+			this.current_ballot = ballot;
+		return new PhaseOneState (accepted, this.current_ballot);
 	}
 
 	public synchronized PhaseTwoState processPhaseTwo (
@@ -171,6 +181,14 @@ public final class DidaTradeServerState {
 		return this.completed_ballot;
 	}
 
+	synchronized boolean hasRunPhaseOne () {
+		return this.wasLeaderAndRanPhaseOne;
+	}
+
+	synchronized void setRanPhaseOne (boolean ran) {
+		this.wasLeaderAndRanPhaseOne = ran;
+	}
+
 	public synchronized boolean getFastPaxosMode () {
 		return this.fastpaxos_on;
 	}
@@ -189,6 +207,16 @@ public final class DidaTradeServerState {
 
 	public void setDebugMode (int mode) {
 		this.debug_state.setDebugMode (mode);
+	}
+
+	public static final class PhaseOneState {
+		final boolean accepted;
+		final int maxballot;
+
+		PhaseOneState(boolean accepted, int maxballot) {
+			this.accepted = accepted;
+			this.maxballot = maxballot;
+		}
 	}
 
 	public static final class PhaseTwoState {

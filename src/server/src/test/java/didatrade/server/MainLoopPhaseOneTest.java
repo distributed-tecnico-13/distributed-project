@@ -1,5 +1,6 @@
 package didatrade.server;
 
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -15,34 +16,7 @@ import didatrade.util.PhaseOneResponseProcessor;
 
 class MainLoopPhaseOneTest {
 
-	private static final int PROPOSED_VALUE = 101;
 	private static final int REQUEST_BALLOT = 6;
-
-	@Test
-	void keepsProposedValueWhenNoPreviousValueWasAccepted () {
-		PhaseOneResponseProcessor processor = completedProcessor (
-				reply (0, -1, 0),
-				reply (1, -1, 0));
-
-		PaxosProposer.PhaseOneResult result = PaxosProposer.evaluatePhaseOneResult (
-				processor, PROPOSED_VALUE);
-
-		assertFalse (result.aborted);
-		assertEquals (PROPOSED_VALUE, result.value);
-	}
-
-	@Test
-	void carriesForwardValueWithHighestAcceptedBallot () {
-		PhaseOneResponseProcessor processor = completedProcessor (
-				reply (0, 4, 301),
-				reply (1, 2, 201));
-
-		PaxosProposer.PhaseOneResult result = PaxosProposer.evaluatePhaseOneResult (
-				processor, PROPOSED_VALUE);
-
-		assertFalse (result.aborted);
-		assertEquals (301, result.value);
-	}
 
 	@Test
 	void staleBallotCannotProceedToPhaseTwo () {
@@ -53,10 +27,10 @@ class MainLoopPhaseOneTest {
 	@Test
 	void failedRpcCallbacksEndPhaseOneWithoutQuorum () {
 		PhaseOneResponseProcessor processor = new PhaseOneResponseProcessor (
-				new ConfigurationScheduler ('A'), 0, REQUEST_BALLOT);
+				new ConfigurationScheduler ('A'), REQUEST_BALLOT);
 		GenericResponseCollector<DidaTradePaxos.PhaseOneReply> collector = new GenericResponseCollector<> (
 				new ArrayList<> (), 3, processor);
-		collector.addResponse (reply (0, -1, 0));
+		collector.addResponse (reply (0, 0, -1, 0));
 		collector.addNoResponse ();
 		collector.addNoResponse ();
 		collector.waitUntilDone ();
@@ -67,39 +41,37 @@ class MainLoopPhaseOneTest {
 	void sameBallotRetryCannotChangeAnAlreadySentPhaseTwoValue () {
 		PaxosInstance entry = new PaxosInstance (0);
 		assertEquals (101, entry.phaseTwoValueFor (REQUEST_BALLOT, 101));
-
-		// A different Phase 1 quorum could now report an older accepted value.
-		PhaseOneResponseProcessor retry = completedProcessor (
-				reply (0, 4, 301), reply (1, -1, 0));
-		PaxosProposer.PhaseOneResult selected = PaxosProposer.evaluatePhaseOneResult (
-				retry, PROPOSED_VALUE);
-		assertEquals (301, selected.value);
-		assertEquals (101, entry.phaseTwoValueFor (REQUEST_BALLOT, selected.value));
-		assertEquals (301, entry.phaseTwoValueFor (REQUEST_BALLOT + 1, selected.value));
+		assertEquals (101, entry.phaseTwoValueFor (REQUEST_BALLOT, 301));
+		assertEquals (301, entry.phaseTwoValueFor (REQUEST_BALLOT + 1, 301));
 	}
 
-	private PhaseOneResponseProcessor completedProcessor (
-			DidaTradePaxos.PhaseOneReply first,
-			DidaTradePaxos.PhaseOneReply second) {
+	@Test
+	void phaseOneResultKeepsCommandsByInstance () {
 		PhaseOneResponseProcessor processor = new PhaseOneResponseProcessor (
-				new ConfigurationScheduler ('A'), 0, REQUEST_BALLOT);
-		ArrayList<DidaTradePaxos.PhaseOneReply> responses = new ArrayList<> ();
-		GenericResponseCollector<DidaTradePaxos.PhaseOneReply> collector = new GenericResponseCollector<> (responses, 3, processor);
+				new ConfigurationScheduler ('A'), REQUEST_BALLOT);
+		processor.onNext (new ArrayList<> (), reply (0, 0, 4, 301));
+		processor.onNext (new ArrayList<> (), reply (1, 1, 2, 201));
 
-		collector.addResponse (first);
-		collector.addResponse (second);
-		return processor;
+		PaxosProposer.PhaseOneResult result = new PaxosProposer.PhaseOneResult (processor);
+
+		assertFalse (result.aborted);
+		assertArrayEquals (new int[]{0, 1}, result.instances ());
+		assertEquals (301, result.commandFor (0));
+		assertEquals (201, result.commandFor (1));
 	}
 
 	private DidaTradePaxos.PhaseOneReply reply (
-			int server_id, int value_ballot, int value) {
+			int server_id, int instance, int value_ballot, int value) {
 		return DidaTradePaxos.PhaseOneReply.newBuilder ()
 				.setServerid (server_id)
 				.setRequestballot (REQUEST_BALLOT)
 				.setAccepted (true)
-				.setValballot (value_ballot)
-				.setValue (value)
 				.setMaxballot (REQUEST_BALLOT)
+				.addResponseLogObjects (DidaTradePaxos.PhaseOneResponseLogObject.newBuilder ()
+						.setInstance (instance)
+						.setValballot (value_ballot)
+						.setValue (value)
+						.build ())
 				.build ();
 	}
 }
