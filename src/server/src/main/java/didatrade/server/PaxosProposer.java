@@ -40,18 +40,27 @@ final class PaxosProposer {
 		if (phase_one.aborted)
 			return false;
 
+		Logger trace = Logger.log (this.server_state)
+				.add ("phase1 ballot=").add (ballot)
+				.add (" min=").add (min_instance)
+				.add (" ok");
 		for (int instance : phase_one.instances ()) {
 			PaxosInstance known_entry = this.server_state.paxos_log.getEntry (instance);
 			if (known_entry != null && known_entry.isDecided ())
 				continue;
-			this.server_state.paxos_log.adopt (instance, phase_one.commandFor (instance));
+			int command = phase_one.commandFor (instance);
+			if (!this.server_state.paxos_log.adopt (instance, command))
+				continue;
+			trace.item ("adopted", instance + ":" + CommandIdHelper.label (command)
+					+ "@" + phase_one.ballotFor (instance));
 		}
-		this.fillNoops (min_instance, phase_one);
+		this.fillNoops (min_instance, phase_one, trace);
+		trace.log ();
 		this.server_state.setRanPhaseOne (ballot);
 		return true;
 	}
 
-	private void fillNoops (int min_instance, PhaseOneResult phase_one) {
+	private void fillNoops (int min_instance, PhaseOneResult phase_one, Logger trace) {
 		int[] instances = phase_one.instances;
 		if (instances.length == 0)
 			return;
@@ -59,8 +68,10 @@ final class PaxosProposer {
 		int max_instance = Arrays.stream (instances).max ().getAsInt ();
 		Set<Integer> known = Arrays.stream (instances).boxed ().collect (Collectors.toSet ());
 		for (int instance = start; instance <= max_instance; instance++) {
-			if (!known.contains (instance))
-				this.server_state.paxos_log.adopt (instance, CommandIdHelper.NOOP_VALUE);
+			if (known.contains (instance))
+				continue;
+			if (this.server_state.paxos_log.adopt (instance, CommandIdHelper.NOOP_VALUE))
+				trace.item ("noops", instance);
 		}
 	}
 
@@ -69,15 +80,22 @@ final class PaxosProposer {
 			if (entry.isDecided () || !this.server_state.canProposeFor (ballot))
 				return;
 			int instance = entry.getInstanceNb ();
+			boolean first_attempt = entry.isNewPhaseTwoBallot (ballot);
 			int phase_two_value = entry.phaseTwoValueFor (ballot, entry.getProposedRequestId ());
 			this.server_state.paxos_log.replaceProposedRequestId (instance, phase_two_value);
+			if (first_attempt)
+				Logger.log (this.server_state, "propose instance=" + instance
+						+ " ballot=" + ballot + " value=" + CommandIdHelper.label (phase_two_value));
 			List<Integer> acceptors = this.server_state.scheduler.acceptors (ballot);
 			if (this.runPhaseTwo (instance, ballot, phase_two_value, acceptors,
 					acceptors.size (), this.server_state.scheduler.quorum (ballot)))
 				return;
 
-			if (entry.decide (ballot, phase_two_value))
+			if (entry.decide (ballot, phase_two_value)) {
+				Logger.log (this.server_state, "decided instance=" + instance
+						+ " ballot=" + ballot + " value=" + CommandIdHelper.label (phase_two_value));
 				this.server_state.setCompletedBallot (ballot);
+			}
 		} finally {
 			entry.releaseClaim (ballot, TimeUnit.MILLISECONDS.toNanos (RETRY_DELAY_MILLIS));
 		}
@@ -103,9 +121,13 @@ final class PaxosProposer {
 
 		PhaseOneResult result = new PhaseOneResult (processor);
 		if (result.aborted && result.maxballot > this.server_state.getCurrentBallot ()) {
+			Logger.log (this.server_state, "phase1 ballot=" + ballot
+					+ " aborted maxballot=" + result.maxballot);
 			this.server_state.setCurrentBallot (result.maxballot);
 			if (this.server_state.main_loop != null)
 				this.server_state.main_loop.wakeup ();
+		} else if (result.aborted) {
+			Logger.log (this.server_state, "phase1 ballot=" + ballot + " no-quorum");
 		}
 		return result;
 	}
@@ -133,6 +155,8 @@ final class PaxosProposer {
 		if (processor.getAccepted ())
 			return false;
 		if (processor.getMaxballot () > this.server_state.getCurrentBallot ()) {
+			Logger.log (this.server_state, "phase2 instance=" + instance
+					+ " ballot=" + ballot + " rejected maxballot=" + processor.getMaxballot ());
 			this.server_state.setCurrentBallot (processor.getMaxballot ());
 			if (this.server_state.main_loop != null)
 				this.server_state.main_loop.wakeup ();
@@ -145,14 +169,18 @@ final class PaxosProposer {
 		final int maxballot;
 		private final int[] instances;
 		private final Map<Integer, Integer> commands;
+		private final Map<Integer, Integer> ballots;
 
 		PhaseOneResult(PhaseOneResponseProcessor processor) {
 			this.aborted = !processor.getAccepted ();
 			this.maxballot = processor.getMaxballot ();
 			this.instances = processor.instances ();
 			this.commands = new HashMap<> ();
-			for (int instance : this.instances)
+			this.ballots = new HashMap<> ();
+			for (int instance : this.instances) {
 				this.commands.put (instance, processor.commandFor (instance));
+				this.ballots.put (instance, processor.ballotFor (instance));
+			}
 		}
 
 		int[] instances () {
@@ -161,6 +189,10 @@ final class PaxosProposer {
 
 		int commandFor (int instance) {
 			return this.commands.get (instance);
+		}
+
+		int ballotFor (int instance) {
+			return this.ballots.get (instance);
 		}
 	}
 }

@@ -16,21 +16,13 @@ public class DidaTradeMainServiceImpl extends DidaTradeMainServiceGrpc.DidaTrade
 
 	@Override
 	public void populate (DidaTradeMain.PopulateRequest request, StreamObserver<DidaTradeMain.PopulateReply> responseObserver) {
-		// for debug purposes
-		System.out.println ("Receiving populate request:" + request);
-
 		int reqid = request.getReqid ();
 		int quantity = request.getQuantity ();
-
-		// for debug purposes
-		System.out.println ("reqid " + reqid + " quantity " + quantity);
+		Logger.log (this.server_state, "populate req=" + reqid + " qty=" + quantity + " pending");
 
 		this.server_state.applyDebugState ();
 
 		DidaTradeCommand command = new DidaTradeCommand (DidaTradeAction.POPULATE, 0, quantity);
-
-		// for debug purposes
-		System.out.println ("Adding populate request with reqid " + reqid + " to pending");
 
 		RequestRecord request_record = new RequestRecord (reqid, command);
 		boolean result = this.server_state.req_history.addToPending (reqid, request_record);
@@ -39,8 +31,7 @@ public class DidaTradeMainServiceImpl extends DidaTradeMainServiceGrpc.DidaTrade
 			result = request_record.waitForResponse ();
 		}
 
-		// for debug purposes
-		System.out.println ("Result is ready for open request with reqid " + reqid);
+		Logger.log (this.server_state, "populate req=" + reqid + (result ? " done" : " failed"));
 
 		DidaTradeMain.PopulateReply response = DidaTradeMain.PopulateReply.newBuilder ().setReqid (reqid).setResult (result).build ();
 		responseObserver.onNext (response);
@@ -49,21 +40,14 @@ public class DidaTradeMainServiceImpl extends DidaTradeMainServiceGrpc.DidaTrade
 
 	@Override
 	public void adduser (DidaTradeMain.AddUserRequest request, StreamObserver<DidaTradeMain.AddUserReply> responseObserver) {
-		// for debug purposes
-		System.out.println ("Receiving add request:" + request);
-
 		int reqid = request.getReqid ();
 		int uid = request.getUserid ();
 		int cash = request.getCash ();
 		int stock = request.getStock ();
-
-		// for debug purposes
-		System.out.println ("reqid " + reqid + " userid " + uid + " cash " + cash + " stock " + stock);
+		Logger.log (this.server_state, "add req=" + reqid + " user=" + uid
+				+ " cash=" + cash + " stock=" + stock + " pending");
 
 		DidaTradeCommand command = new DidaTradeCommand (DidaTradeAction.ADDUSER, uid, cash, stock);
-
-		// for debug purposes
-		System.out.println ("Adding add request with reqid " + reqid + " to pending");
 
 		this.server_state.applyDebugState ();
 
@@ -74,8 +58,7 @@ public class DidaTradeMainServiceImpl extends DidaTradeMainServiceGrpc.DidaTrade
 			result = request_record.waitForResponse ();
 		}
 
-		// for debug purposes
-		System.out.println ("Result is ready for add request with reqid " + reqid);
+		Logger.log (this.server_state, "add req=" + reqid + (result ? " done" : " failed"));
 
 		DidaTradeMain.AddUserReply response = DidaTradeMain.AddUserReply.newBuilder ().setReqid (reqid).setResult (result).build ();
 
@@ -84,22 +67,14 @@ public class DidaTradeMainServiceImpl extends DidaTradeMainServiceGrpc.DidaTrade
 	}
 
 	public void buy (DidaTradeMain.BuyRequest request, StreamObserver<DidaTradeMain.BuyReply> responseObserver) {
-		// for debug purposes
-		System.out.println ("Receiving buy request:" + request);
-
 		int reqid = request.getReqid ();
 		int uid = request.getUserid ();
 		int quantity = request.getQuantity ();
-
-		// for debug purposes
-		System.out.println ("reqid " + reqid + " userid " + uid + " quantity " + quantity);
+		Logger.log (this.server_state, "buy req=" + reqid + " user=" + uid + " qty=" + quantity + " pending");
 
 		this.server_state.applyDebugState ();
 
 		DidaTradeCommand command = new DidaTradeCommand (DidaTradeAction.BUY, uid, quantity);
-
-		// for debug purposes
-		System.out.println ("Adding buy request with reqid " + reqid + " to pending");
 
 		RequestRecord request_record = new RequestRecord (reqid, command);
 		boolean result = this.server_state.req_history.addToPending (reqid, request_record);
@@ -108,8 +83,7 @@ public class DidaTradeMainServiceImpl extends DidaTradeMainServiceGrpc.DidaTrade
 			result = request_record.waitForResponse ();
 		}
 
-		// for debug purposes
-		System.out.println ("Result is ready for add request with reqid " + reqid);
+		Logger.log (this.server_state, "buy req=" + reqid + (result ? " done" : " failed"));
 
 		DidaTradeMain.BuyReply response = DidaTradeMain.BuyReply.newBuilder ().setReqid (reqid).setResult (result).build ();
 
@@ -119,20 +93,12 @@ public class DidaTradeMainServiceImpl extends DidaTradeMainServiceGrpc.DidaTrade
 
 	@Override
 	public void sell (DidaTradeMain.SellRequest request, StreamObserver<DidaTradeMain.SellReply> responseObserver) {
-		// for debug purposes
-		System.out.println ("Receiving sell request:" + request);
-
 		int reqid = request.getReqid ();
 		int uid = request.getUserid ();
 		int quantity = request.getQuantity ();
-
-		// for debug purposes
-		System.out.println ("reqid " + reqid + " userid " + uid + " quantity " + quantity);
+		Logger.log (this.server_state, "sell req=" + reqid + " user=" + uid + " qty=" + quantity + " pending");
 
 		DidaTradeCommand command = new DidaTradeCommand (DidaTradeAction.SELL, uid, quantity);
-
-		// for debug purposes
-		System.out.println ("Adding sell request with reqid " + reqid + " to pending");
 
 		this.server_state.applyDebugState ();
 
@@ -143,8 +109,7 @@ public class DidaTradeMainServiceImpl extends DidaTradeMainServiceGrpc.DidaTrade
 			result = request_record.waitForResponse ();
 		}
 
-		// for debug purposes
-		System.out.println ("Result is ready for add request with reqid " + reqid);
+		Logger.log (this.server_state, "sell req=" + reqid + (result ? " done" : " failed"));
 
 		DidaTradeMain.SellReply response = DidaTradeMain.SellReply.newBuilder ().setReqid (reqid).setResult (result).build ();
 
@@ -154,21 +119,13 @@ public class DidaTradeMainServiceImpl extends DidaTradeMainServiceGrpc.DidaTrade
 
 	@Override
 	public void balance (DidaTradeMain.BalanceRequest request, StreamObserver<DidaTradeMain.BalanceReply> responseObserver) {
-		// for debug purposes
-		System.out.println ("Receiving balance request:" + request);
-
 		int reqid = request.getReqid ();
 		int uid = request.getUserid ();
-
-		// for debug purposes
-		System.out.println ("reqid " + reqid + " userid " + uid);
+		Logger.log (this.server_state, "balance req=" + reqid + " user=" + uid + " pending");
 
 		DidaTradeCommand command = new DidaTradeCommand (DidaTradeAction.BALANCE, uid);
 
 		this.server_state.applyDebugState ();
-
-		// for debug purposes
-		System.out.println ("Adding balance request with reqid " + reqid + " to pending");
 
 		RequestRecord request_record = new RequestRecord (reqid, command);
 		boolean result = this.server_state.req_history.addToPending (reqid, request_record);
@@ -177,8 +134,7 @@ public class DidaTradeMainServiceImpl extends DidaTradeMainServiceGrpc.DidaTrade
 			result = request_record.waitForResponse ();
 		}
 
-		// for debug purposes
-		System.out.println ("Result is ready for add request with reqid " + reqid);
+		Logger.log (this.server_state, "balance req=" + reqid + (result ? " done" : " failed"));
 
 		int balance = command.getQuantity ();
 		DidaTradeMain.BalanceReply response = DidaTradeMain.BalanceReply.newBuilder ().setReqid (reqid).setResult (result).setBalance (balance).build ();
@@ -189,18 +145,10 @@ public class DidaTradeMainServiceImpl extends DidaTradeMainServiceGrpc.DidaTrade
 
 	@Override
 	public void dump (DidaTradeMain.DumpRequest request, StreamObserver<DidaTradeMain.DumpReply> responseObserver) {
-		// for debug purposes
-		System.out.println ("Receiving dump request:" + request);
-
 		int reqid = request.getReqid ();
-
-		// for debug purposes
-		System.out.println ("reqid " + reqid);
+		Logger.log (this.server_state, "dump req=" + reqid + " pending");
 
 		DidaTradeCommand command = new DidaTradeCommand (DidaTradeAction.DUMP);
-
-		// for debug purposes
-		System.out.println ("Adding dump request with reqid " + reqid + " to pending");
 
 		this.server_state.applyDebugState ();
 
@@ -211,8 +159,7 @@ public class DidaTradeMainServiceImpl extends DidaTradeMainServiceGrpc.DidaTrade
 			result = request_record.waitForResponse ();
 		}
 
-		// for debug purposes
-		System.out.println ("Result is ready for dump request with reqid " + reqid);
+		Logger.log (this.server_state, "dump req=" + reqid + (result ? " done" : " failed"));
 
 		DidaTradeMain.DumpReply response = DidaTradeMain.DumpReply.newBuilder ().setReqid (reqid).setResult (result).build ();
 
