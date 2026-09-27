@@ -90,6 +90,10 @@ public class PaxosInstance {
 		return this.write_ballot;
 	}
 
+	public synchronized AcceptedSnapshot getAcceptedSnapshot () {
+		return new AcceptedSnapshot (this.accepted_value, this.write_ballot);
+	}
+
 	public synchronized boolean recordLearn (
 			int ballot, int value, int server_id, int quorum) {
 		if (this.decided || ballot < this.accept_ballot)
@@ -208,6 +212,16 @@ public class PaxosInstance {
 				this.phase_two_value = selected_value;
 			}
 			return this.phase_two_value;
+		}
+	}
+
+	public static final class AcceptedSnapshot {
+		final int value;
+		final int valballot;
+
+		AcceptedSnapshot(int value, int valballot) {
+			this.value = value;
+			this.valballot = valballot;
 		}
 	}
 

@@ -30,7 +30,7 @@ final class PaxosProposer {
 	boolean prepare (int ballot) {
 		if (!this.server_state.canProposeFor (ballot))
 			return false;
-		if (this.server_state.hasRunPhaseOne ())
+		if (this.server_state.hasRunPhaseOne (ballot))
 			return true;
 
 		int min_instance = this.server_state.paxos_log.getMinUndecidedEntry ();
@@ -40,10 +40,14 @@ final class PaxosProposer {
 		if (phase_one.aborted)
 			return false;
 
-		for (int instance : phase_one.instances ())
+		for (int instance : phase_one.instances ()) {
+			PaxosInstance known_entry = this.server_state.paxos_log.getEntry (instance);
+			if (known_entry != null && known_entry.isDecided ())
+				continue;
 			this.server_state.paxos_log.adopt (instance, phase_one.commandFor (instance));
+		}
 		this.fillNoops (min_instance, phase_one);
-		this.server_state.setRanPhaseOne (true);
+		this.server_state.setRanPhaseOne (ballot);
 		return true;
 	}
 
@@ -130,7 +134,6 @@ final class PaxosProposer {
 			return false;
 		if (processor.getMaxballot () > this.server_state.getCurrentBallot ()) {
 			this.server_state.setCurrentBallot (processor.getMaxballot ());
-			this.server_state.setRanPhaseOne (false);
 			if (this.server_state.main_loop != null)
 				this.server_state.main_loop.wakeup ();
 		}

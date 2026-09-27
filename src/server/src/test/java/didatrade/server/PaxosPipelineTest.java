@@ -3,6 +3,7 @@ package didatrade.server;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.HashSet;
@@ -85,14 +86,33 @@ class PaxosPipelineTest {
 	}
 
 	@Test
-	void adoptsCommandAlreadyBoundToAnInstance () {
+	void adoptOverwritesAStaleUndecidedCandidateWithAFreshlyDiscoveredValue () {
+		PaxosLog log = new PaxosLog ();
+		assertTrue (log.adopt (5, 301));
+		assertEquals (301, log.getEntry (5).getProposedRequestId ());
+
+		assertTrue (log.adopt (5, 301)); // idempotent re-adopt of the same value
+		assertTrue (log.adopt (5, 302)); // a newer Phase 1 discovery overrides the stale candidate
+		assertEquals (302, log.getEntry (5).getProposedRequestId ());
+	}
+
+	@Test
+	void adoptRefusesToDoubleBindAStillActiveRequestToAnotherInstance () {
 		PaxosLog log = new PaxosLog ();
 		assertTrue (log.adopt (5, 301));
 
-		assertEquals (301, log.getEntry (5).getProposedRequestId ());
+		assertFalse (log.adopt (6, 301));
+		assertNull (log.getEntry (6));
+	}
+
+	@Test
+	void adoptCannotOverrideADecidedInstance () {
+		PaxosLog log = new PaxosLog ();
+		log.testAndSetEntry (5).decide (3, 301);
+
 		assertTrue (log.adopt (5, 301));
 		assertFalse (log.adopt (5, 302));
-		assertFalse (log.adopt (6, 301));
+		assertEquals (301, log.getEntry (5).getCommandId ());
 	}
 
 	@Test

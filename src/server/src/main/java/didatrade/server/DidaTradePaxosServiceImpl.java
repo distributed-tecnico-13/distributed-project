@@ -42,11 +42,14 @@ public class DidaTradePaxosServiceImpl extends DidaTradePaxosServiceGrpc.DidaTra
 		response_builder.setAccepted (phase_one.accepted);
 		response_builder.setMaxballot (phase_one.maxballot);
 		response_builder.addAllResponseLogObjects (
-				Arrays.stream (entries).map (entry -> DidaTradePaxos.PhaseOneResponseLogObject.newBuilder ()
-						.setInstance (entry.getInstanceNb ())
-						.setValue (entry.getAcceptedValue ())
-						.setValballot (entry.getWriteBallot ())
-						.build ())
+				Arrays.stream (entries).map (entry -> {
+					PaxosInstance.AcceptedSnapshot snapshot = entry.getAcceptedSnapshot ();
+					return DidaTradePaxos.PhaseOneResponseLogObject.newBuilder ()
+							.setInstance (entry.getInstanceNb ())
+							.setValue (snapshot.value)
+							.setValballot (snapshot.valballot)
+							.build ();
+				})
 						.toList ());
 
 		DidaTradePaxos.PhaseOneReply response = response_builder.build ();
