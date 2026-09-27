@@ -61,11 +61,20 @@ public class PaxosLog {
 		return entry;
 	}
 
-	// Binds a command Phase 1 already accepted. A later fresh request cannot reuse the slot.
+	// Binds a command Phase 1 discovered as already accepted for this instance. A fresh
+	// discovery always overrides a stale, not-yet-decided local candidate; a noop fill
+	// (fillNoops) must never clobber a real candidate; a decided slot never changes.
 	public synchronized boolean adopt (int instance, int request_id) {
 		PaxosInstance entry = this.log.get (instance);
-		if (entry != null && CommandIdHelper.isClientRequest (entry.getProposedRequestId ()))
-			return entry.getProposedRequestId () == request_id;
+		if (entry != null) {
+			int existing = entry.getProposedRequestId ();
+			if (existing == request_id)
+				return true;
+			if (entry.isDecided ())
+				return entry.getCommandId () == request_id;
+			if (CommandIdHelper.isNoop (request_id) && CommandIdHelper.isClientRequest (existing))
+				return false;
+		}
 		// A noop is not a client request, so several holes may hold the same value.
 		if (!CommandIdHelper.isNoop (request_id) && this.isRequestAssigned (request_id))
 			return false;
@@ -89,11 +98,13 @@ public class PaxosLog {
 	}
 
 	public synchronized int getMinUndecidedEntry () {
-		return this.log.entrySet ().stream ()
-				.filter (e -> !e.getValue ().isDecided ())
-				.map (entry -> entry.getKey ())
-				.min (Integer::compareTo)
-				.orElse (-1);
+		int instance = 0;
+		while (true) {
+			PaxosInstance entry = this.log.get (instance);
+			if (entry == null || !entry.isDecided ())
+				return instance;
+			instance++;
+		}
 	}
 
 	private boolean isRequestAssigned (int request_id) {

@@ -33,7 +33,7 @@ public final class DidaTradeServerState {
 	private int completed_ballot;
 	private DebugState debug_state;
 	private boolean fastpaxos_on;
-	private boolean wasLeaderAndRanPhaseOne;
+	private int ranPhaseLastForBallot;
 
 	MainLoop main_loop;
 	Thread main_loop_worker;
@@ -50,7 +50,7 @@ public final class DidaTradeServerState {
 		this.req_history = new RequestHistory ();
 		this.paxos_log = new PaxosLog ();
 		this.main_loop = new MainLoop (this);
-		this.wasLeaderAndRanPhaseOne = false;
+		this.ranPhaseLastForBallot = -1;
 
 		// populate manager
 		this.trade_manager.populate (DEFAULT_POPULATION);
@@ -90,11 +90,7 @@ public final class DidaTradeServerState {
 	}
 
 	public synchronized boolean canProposeFor (int ballot) {
-		boolean can_propose = ballot >= 0 && canProposeFor (ballot, this.current_ballot,
-				this.scheduler.leader (ballot), this.my_id);
-		if (!can_propose)
-			this.wasLeaderAndRanPhaseOne = false;
-		return can_propose;
+		return ballot >= 0 && ballot == this.current_ballot && this.scheduler.leader (ballot) == this.my_id;
 	}
 
 	static boolean canProposeFor (
@@ -181,12 +177,12 @@ public final class DidaTradeServerState {
 		return this.completed_ballot;
 	}
 
-	synchronized boolean hasRunPhaseOne () {
-		return this.wasLeaderAndRanPhaseOne;
+	synchronized boolean hasRunPhaseOne (int ballot) {
+		return this.ranPhaseLastForBallot == ballot;
 	}
 
-	synchronized void setRanPhaseOne (boolean ran) {
-		this.wasLeaderAndRanPhaseOne = ran;
+	synchronized void setRanPhaseOne (int ballot) {
+		this.ranPhaseLastForBallot = ballot;
 	}
 
 	public synchronized boolean getFastPaxosMode () {
