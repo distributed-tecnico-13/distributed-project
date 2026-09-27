@@ -1,250 +1,95 @@
 package didatrade.server;
 
-import java.util.*;
-
-import didatrade.DidaTradeMain; // ignore-unused-import
-import didatrade.DidaTradePaxos;
-import didatrade.DidaTradePaxosServiceGrpc;
-
-import didatrade.util.GenericResponseCollector;
-import didatrade.util.CollectorStreamObserver;
-import didatrade.util.PhaseOneResponseProcessor;
-import didatrade.util.PhaseTwoResponseProcessor;
-
-import didatrade.configs.ConfigurationScheduler; // ignore-unused-import
-
-import io.grpc.ManagedChannel;
-import io.grpc.ManagedChannelBuilder; // ignore-unused-import
-
+/** Single coordinator: claim log slots, dispatch consensus, execute in order. */
 public class MainLoop implements Runnable {
 	DidaTradeServerState server_state;
 
 	private boolean has_work;
-	private int next_log_entry;
-	private List<Integer> all_participants;
-	private int n_participants;
-	private String[] targets;
-	private ManagedChannel[] channels;
-	private DidaTradePaxosServiceGrpc.DidaTradePaxosServiceStub[] async_stubs;
+	private final PaxosPipeline pipeline;
+	private final PaxosProposer proposer;
+	private final OrderedPaxosExecutor ordered_executor;
 
 	public MainLoop(DidaTradeServerState state) {
 		this.server_state = state;
-		this.has_work = false;
-		this.next_log_entry = -1;
+		this.has_work = true;
+		this.pipeline = new PaxosPipeline (this::signal);
+		this.proposer = new PaxosProposer (state);
+		this.ordered_executor = new OrderedPaxosExecutor (state);
 	}
 
 	public void run () {
-		while (true) {
-			this.next_log_entry++;
-			this.processEntry (this.next_log_entry);
+		while (!Thread.currentThread ().isInterrupted ()) {
+			synchronized (this) {
+				this.has_work = false;
+			}
+			boolean progressed = this.ordered_executor.drain () > 0;
+			progressed = this.scheduleConsensus () || progressed;
+			if (!progressed)
+				this.waitForWork (this.nextRetryDelayMillis ());
 		}
+		this.pipeline.shutdown ();
 	}
 
 	public synchronized void wakeup () {
+		this.signal ();
+	}
+
+	private synchronized void signal () {
 		this.has_work = true;
-		notify ();
+		notifyAll ();
 	}
 
-	public synchronized void processEntry (int entry_number) {
-
-		PaxosInstance next_entry = this.server_state.paxos_log.testAndSetEntry (entry_number);
-
-		while (next_entry.decided == false) {
-			RequestRecord request_record = this.server_state.req_history.getFirstPending ();
-			int ballot = this.server_state.getCurrentBallot ();
-			int completed_ballot = this.server_state.getCompletedBallot ();
-
-			List<Integer> acceptors = this.server_state.scheduler.acceptors (ballot);
-			int quorum = this.server_state.scheduler.quorum (ballot);
-			int n_acceptors = acceptors.size ();
-
-			if ((ballot > -1) && (request_record != null) && (this.server_state.scheduler.leader (ballot) == this.server_state.my_id)) {
-
-				System.out.println ("I am the leader for request with id " + request_record.getId ());
-				boolean ballot_aborted = false;
-				int phase_one_readballot = -1;
-				int phase_two_value = request_record.getId ();
-
-				// Paxos Phase Oneballot
-				PhaseOneResult phase_one = this.runPhaseOne (entry_number, ballot, completed_ballot, acceptors, n_acceptors, phase_two_value);
-				ballot_aborted = phase_one.aborted;
-				phase_two_value = phase_one.value;
-
-				// Paxos Phase Two
-				if (ballot_aborted == false) {
-					ballot_aborted = this.runPhaseTwo (entry_number, ballot, phase_two_value, acceptors, n_acceptors, quorum);
-				}
-
-				// After phase2
-				if (ballot_aborted == false) {
-					this.server_state.setCompletedBallot (ballot);
-					next_entry.command_id = phase_two_value;
-					next_entry.decided = true;
-				}
-			}
-			if (next_entry.decided == false) {
-				System.out.println ("Entry not decided: waiting");
-				this.has_work = false;
-				while (this.has_work == false) {
-					try {
-						wait ();
-					} catch (InterruptedException e) {
-					}
-				}
-			}
-
-		}
-
-		System.out.println ("Log entry with number " + this.next_log_entry + " has been decided with command id = " + next_entry.command_id);
-		RequestRecord request_record = this.server_state.req_history.getIfPending (next_entry.command_id);
-		// if I receive the paxos decision before the request
-		while (request_record == null) {
-			System.out.println ("Record not available!");
-			try {
+	private synchronized void waitForWork (long retry_delay_millis) {
+		if (this.has_work)
+			return;
+		try {
+			if (retry_delay_millis < 0)
 				wait ();
-			} catch (InterruptedException e) {
+			else
+				wait (Math.max (1, retry_delay_millis));
+		} catch (InterruptedException e) {
+			Thread.currentThread ().interrupt ();
+		}
+	}
+
+	private boolean scheduleConsensus () {
+		int ballot = this.server_state.getCurrentBallot ();
+		if (!this.server_state.canProposeFor (ballot))
+			return false;
+
+		boolean submitted = false;
+		int first = this.ordered_executor.getNextInstanceToExecute ();
+		for (int instance = first; instance < first + PaxosPipeline.CAPACITY; instance++) {
+			if (!this.pipeline.hasCapacity ())
+				break;
+			PaxosInstance entry = this.server_state.paxos_log.assignPendingRequest (
+					instance, this.server_state.req_history);
+			if (entry == null || !entry.tryClaim (ballot, System.nanoTime ()))
+				continue;
+			if (!this.pipeline.submitTask ( () -> this.proposer.propose (entry, ballot))) {
+				entry.releaseClaim (ballot, 0);
+				break;
 			}
-			request_record = this.server_state.req_history.getIfPending (next_entry.command_id);
+			submitted = true;
 		}
-
-		// exec request in entry
-		// System.out.println("Going to process command with id = " + next_entry.command_id);
-
-		DidaTradeCommand command = request_record.getRequest ();
-		boolean result = this.executeAction (command);
-
-		// sending response
-		System.out.println ("Setting response for command with id = " + next_entry.command_id + " with result = " + result);
-		request_record.setResponse (result);
-		this.server_state.req_history.moveToProcessed (request_record.getId ());
+		return submitted;
 	}
 
-	private PhaseOneResult runPhaseOne (int entry_number, int ballot, int completed_ballot, List<Integer> acceptors, int n_acceptors, int proposed_value) {
-		System.out.println ("Going to run paxos phase 1");
-
-		// send phase1
-		DidaTradePaxos.PhaseOneRequest.Builder phase_one_request_builder = DidaTradePaxos.PhaseOneRequest.newBuilder ();
-		phase_one_request_builder.setInstance (entry_number);
-		phase_one_request_builder.setRequestballot (ballot);
-
-		DidaTradePaxos.PhaseOneRequest phase_one_request = phase_one_request_builder.build ();
-		System.out.println ("Going to send phase 1" + phase_one_request);
-
-		int low_ballot = Math.max (completed_ballot, 0);
-		int high_ballot = ballot;
-
-		PhaseOneResponseProcessor phase_one_processor = new PhaseOneResponseProcessor (this.server_state.scheduler, low_ballot, high_ballot);
-
-		ArrayList<DidaTradePaxos.PhaseOneReply> phase_one_responses = new ArrayList<DidaTradePaxos.PhaseOneReply> ();
-		GenericResponseCollector<DidaTradePaxos.PhaseOneReply> phase_one_collector = new GenericResponseCollector<DidaTradePaxos.PhaseOneReply> (phase_one_responses,
-				n_acceptors, phase_one_processor);
-
-		for (int i = 0; i < n_acceptors; i++) {
-			CollectorStreamObserver<DidaTradePaxos.PhaseOneReply> phase_one_observer = new CollectorStreamObserver<DidaTradePaxos.PhaseOneReply> (phase_one_collector);
-			this.server_state.async_stubs[acceptors.get (i)].phaseone (phase_one_request, phase_one_observer);
+	private long nextRetryDelayMillis () {
+		int ballot = this.server_state.getCurrentBallot ();
+		if (!this.server_state.canProposeFor (ballot) || !this.pipeline.hasCapacity ())
+			return -1;
+		int first = this.ordered_executor.getNextInstanceToExecute ();
+		long earliest = Long.MAX_VALUE;
+		long now = System.nanoTime ();
+		for (int instance = first; instance < first + PaxosPipeline.CAPACITY; instance++) {
+			PaxosInstance entry = this.server_state.paxos_log.getEntry (instance);
+			if (entry == null)
+				continue;
+			long delay = entry.retryDelayMillis (ballot, now);
+			if (delay >= 0)
+				earliest = Math.min (earliest, delay);
 		}
-
-		phase_one_collector.waitUntilDone ();
-
-		PhaseOneResult result = evaluatePhaseOneResult (phase_one_processor, proposed_value);
-		if (result.aborted && result.maxballot > this.server_state.getCurrentBallot ())
-			this.server_state.setCurrentBallot (result.maxballot);
-
-		System.out.println (
-				"Paxos phase 1 ended with aborted = " + result.aborted + " and read ballot = " + phase_one_processor.getValballot () + " and value " + result.value);
-
-		return result;
-	}
-
-	static PhaseOneResult evaluatePhaseOneResult (PhaseOneResponseProcessor processor, int proposed_value) {
-		boolean ballot_aborted = !processor.getAccepted ();
-		int phase_two_value = proposed_value;
-
-		if (!ballot_aborted && processor.getValballot () > -1)
-			phase_two_value = processor.getValue ();
-
-		return new PhaseOneResult (ballot_aborted, phase_two_value, processor.getMaxballot ());
-	}
-
-	private boolean runPhaseTwo (int entry_number, int ballot, int phase_two_value, List<Integer> acceptors, int n_acceptors, int quorum) {
-		System.out.println ("Going to run paxos phase 2");
-
-		// send phase2
-		DidaTradePaxos.PhaseTwoRequest.Builder phase_two_request = DidaTradePaxos.PhaseTwoRequest.newBuilder ();
-		phase_two_request.setInstance (entry_number);
-		phase_two_request.setRequestballot (ballot);
-		phase_two_request.setValue (phase_two_value);
-
-		PhaseTwoResponseProcessor phase_two_processor = new PhaseTwoResponseProcessor (quorum);
-
-		System.out.println ("Calling peers with phase_two_request = " + phase_two_request);
-		ArrayList<DidaTradePaxos.PhaseTwoReply> phase_two_responses = new ArrayList<DidaTradePaxos.PhaseTwoReply> ();
-		GenericResponseCollector<DidaTradePaxos.PhaseTwoReply> phase_two_collector = new GenericResponseCollector<DidaTradePaxos.PhaseTwoReply> (phase_two_responses,
-				n_acceptors, phase_two_processor);
-		for (int i = 0; i < n_acceptors; i++) {
-			CollectorStreamObserver<DidaTradePaxos.PhaseTwoReply> phase_two_observer = new CollectorStreamObserver<DidaTradePaxos.PhaseTwoReply> (
-					phase_two_collector);
-			this.server_state.async_stubs[acceptors.get (i)].phasetwo (phase_two_request.build (), phase_two_observer);
-		}
-
-		System.out.println ("Waiting for responses...");
-		phase_two_collector.waitUntilDone ();
-		boolean ballot_aborted = false;
-		if (phase_two_processor.getAccepted () == false) {
-			ballot_aborted = true;
-			this.server_state.setCurrentBallot (phase_two_processor.getMaxballot ());
-		}
-		System.out.println ("Paxos phase 2 ended with ballot_aborted = " + ballot_aborted);
-		return ballot_aborted;
-	}
-
-	private boolean executeAction (DidaTradeCommand command) {
-		boolean result = false;
-		int balance = 0;
-
-		DidaTradeAction action = command.getAction ();
-
-		// System.out.println("Action = " + action);
-		switch (action) {
-			case DidaTradeAction.POPULATE :
-				result = this.server_state.trade_manager.populate (command.getQuantity ());
-				break;
-			case DidaTradeAction.ADDUSER :
-				result = this.server_state.trade_manager.add_user (command.getUserId (), command.getQuantity (), command.getStock ());
-				break;
-			case DidaTradeAction.SELL :
-				result = this.server_state.trade_manager.sell (command.getUserId (), command.getQuantity ());
-				break;
-			case DidaTradeAction.BUY :
-				result = this.server_state.trade_manager.acquire (command.getUserId (), command.getQuantity ());
-				break;
-			case DidaTradeAction.BALANCE :
-				balance = this.server_state.trade_manager.balance (command.getUserId ());
-				command.setQuantity (balance);
-				result = (balance != -1);
-				break;
-			case DidaTradeAction.DUMP :
-				this.server_state.trade_manager.dump ();
-				result = true;
-				break;
-			default :
-				result = false;
-				System.err.println ("*** Unknown command ****");
-				break;
-		}
-
-		return result;
-	}
-
-	static class PhaseOneResult {
-		final boolean aborted;
-		final int value;
-		final int maxballot;
-
-		PhaseOneResult(boolean aborted, int value, int maxballot) {
-			this.aborted = aborted;
-			this.value = value;
-			this.maxballot = maxballot;
-		}
+		return earliest == Long.MAX_VALUE ? -1 : earliest;
 	}
 }

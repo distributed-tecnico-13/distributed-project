@@ -87,6 +87,42 @@ public final class DidaTradeServerState {
 			this.current_ballot = ballot;
 	}
 
+	public synchronized boolean canProposeFor (int ballot) {
+		if (ballot < 0)
+			return false;
+		return canProposeFor (ballot, this.current_ballot,
+				this.scheduler.leader (ballot), this.my_id);
+	}
+
+	static boolean canProposeFor (
+			int ballot, int current_ballot, int leader, int server_id) {
+		return ballot >= 0 && ballot == current_ballot && leader == server_id;
+	}
+
+	// Test-only construction avoids starting RPC channels and the MainLoop thread.
+	DidaTradeServerState() {
+		this.current_ballot = 0;
+	}
+
+	// Lock order: server state, then one PaxosInstance. No RPC runs under either lock.
+	public synchronized PaxosInstance.PhaseOneState processPhaseOne (
+			PaxosInstance entry, int ballot) {
+		boolean accepted = ballot >= this.current_ballot;
+		if (accepted)
+			this.current_ballot = ballot;
+		return entry.phaseOneState (accepted, ballot, this.current_ballot);
+	}
+
+	public synchronized PhaseTwoState processPhaseTwo (
+			PaxosInstance entry, int ballot, int value) {
+		boolean accepted = ballot >= this.current_ballot;
+		if (accepted) {
+			this.current_ballot = ballot;
+			entry.accept (ballot, value);
+		}
+		return new PhaseTwoState (accepted, this.current_ballot);
+	}
+
 	public synchronized int getCompletedBallot () {
 		return this.completed_ballot;
 	}
@@ -99,10 +135,10 @@ public final class DidaTradeServerState {
 			PaxosInstance entry = this.paxos_log.getEntry (i);
 			if (entry == null)
 				return ballot;
-			if (!entry.decided)
+			if (!entry.isDecided ())
 				return ballot;
-			else if (entry.accept_ballot > ballot)
-				ballot = entry.accept_ballot;
+			else if (entry.getAcceptBallot () > ballot)
+				ballot = entry.getAcceptBallot ();
 
 		}
 		return ballot;
@@ -152,5 +188,15 @@ public final class DidaTradeServerState {
 
 	public void setDebugMode (int mode) {
 		this.debug_state.setDebugMode (mode);
+	}
+
+	public static final class PhaseTwoState {
+		final boolean accepted;
+		final int maxballot;
+
+		PhaseTwoState(boolean accepted, int maxballot) {
+			this.accepted = accepted;
+			this.maxballot = maxballot;
+		}
 	}
 }

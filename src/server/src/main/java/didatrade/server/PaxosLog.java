@@ -1,6 +1,8 @@
 package didatrade.server;
 
+import java.util.HashSet;
 import java.util.Hashtable;
+import java.util.Set;
 
 public class PaxosLog {
 	private Hashtable<Integer, PaxosInstance> log;
@@ -35,5 +37,32 @@ public class PaxosLog {
 			this.log.put (position, entry);
 		}
 		return entry;
+	}
+
+	// MainLoop is the sole allocator. Keep the request/slot choice with the log.
+	public synchronized PaxosInstance assignPendingRequest (int position, RequestHistory history) {
+		PaxosInstance entry = this.log.get (position);
+		if (entry != null && (entry.isDecided () || entry.getProposedRequestId () >= 0))
+			return entry;
+
+		Set<Integer> assigned = new HashSet<> ();
+		for (PaxosInstance candidate : this.log.values ()) {
+			int owned_request = candidate.getUnexecutedRequestId ();
+			if (owned_request >= 0)
+				assigned.add (owned_request);
+		}
+		RequestRecord pending = history.getFirstPendingExcluding (assigned);
+		if (pending == null)
+			return entry;
+		if (entry == null)
+			entry = this.testAndSetEntry (position);
+		entry.setProposedRequestId (pending.getId ());
+		return entry;
+	}
+
+	public synchronized void replaceProposedRequestId (int position, int request_id) {
+		PaxosInstance entry = this.log.get (position);
+		if (entry != null)
+			entry.setProposedRequestId (request_id);
 	}
 }

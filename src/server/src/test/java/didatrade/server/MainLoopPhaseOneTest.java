@@ -2,6 +2,7 @@ package didatrade.server;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
 
@@ -23,7 +24,7 @@ class MainLoopPhaseOneTest {
 				reply (0, -1, 0),
 				reply (1, -1, 0));
 
-		MainLoop.PhaseOneResult result = MainLoop.evaluatePhaseOneResult (
+		PaxosProposer.PhaseOneResult result = PaxosProposer.evaluatePhaseOneResult (
 				processor, PROPOSED_VALUE);
 
 		assertFalse (result.aborted);
@@ -36,11 +37,45 @@ class MainLoopPhaseOneTest {
 				reply (0, 4, 301),
 				reply (1, 2, 201));
 
-		MainLoop.PhaseOneResult result = MainLoop.evaluatePhaseOneResult (
+		PaxosProposer.PhaseOneResult result = PaxosProposer.evaluatePhaseOneResult (
 				processor, PROPOSED_VALUE);
 
 		assertFalse (result.aborted);
 		assertEquals (301, result.value);
+	}
+
+	@Test
+	void staleBallotCannotProceedToPhaseTwo () {
+		assertFalse (DidaTradeServerState.canProposeFor (5, 8, 2, 2));
+		assertTrue (DidaTradeServerState.canProposeFor (8, 8, 2, 2));
+	}
+
+	@Test
+	void failedRpcCallbacksEndPhaseOneWithoutQuorum () {
+		PhaseOneResponseProcessor processor = new PhaseOneResponseProcessor (
+				new ConfigurationScheduler ('A'), 0, REQUEST_BALLOT);
+		GenericResponseCollector<DidaTradePaxos.PhaseOneReply> collector = new GenericResponseCollector<> (
+				new ArrayList<> (), 3, processor);
+		collector.addResponse (reply (0, -1, 0));
+		collector.addNoResponse ();
+		collector.addNoResponse ();
+		collector.waitUntilDone ();
+		assertFalse (processor.getAccepted ());
+	}
+
+	@Test
+	void sameBallotRetryCannotChangeAnAlreadySentPhaseTwoValue () {
+		PaxosInstance entry = new PaxosInstance (0);
+		assertEquals (101, entry.phaseTwoValueFor (REQUEST_BALLOT, 101));
+
+		// A different Phase 1 quorum could now report an older accepted value.
+		PhaseOneResponseProcessor retry = completedProcessor (
+				reply (0, 4, 301), reply (1, -1, 0));
+		PaxosProposer.PhaseOneResult selected = PaxosProposer.evaluatePhaseOneResult (
+				retry, PROPOSED_VALUE);
+		assertEquals (301, selected.value);
+		assertEquals (101, entry.phaseTwoValueFor (REQUEST_BALLOT, selected.value));
+		assertEquals (301, entry.phaseTwoValueFor (REQUEST_BALLOT + 1, selected.value));
 	}
 
 	private PhaseOneResponseProcessor completedProcessor (
