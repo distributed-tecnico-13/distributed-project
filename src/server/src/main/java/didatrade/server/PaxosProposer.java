@@ -1,10 +1,13 @@
 package didatrade.server;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.stream.Collectors;
 
 import didatrade.DidaTradePaxos;
 import didatrade.util.CollectorStreamObserver;
@@ -30,18 +33,31 @@ final class PaxosProposer {
 		if (this.server_state.hasRunPhaseOne ())
 			return true;
 
-		int min_instance = this.server_state.paxos_log.getMinUndecidedInstance ();
+		int min_instance = this.server_state.paxos_log.getMinUndecidedEntry ();
 		List<Integer> acceptors = this.server_state.scheduler.acceptors (ballot);
 		PhaseOneResult phase_one = this.runPhaseOne (
 				acceptors, acceptors.size (), ballot, min_instance);
 		if (phase_one.aborted)
 			return false;
 
-		// TODO: Propose a noop for each hole at or above min_instance that no acceptor returned.
 		for (int instance : phase_one.instances ())
 			this.server_state.paxos_log.adopt (instance, phase_one.commandFor (instance));
+		this.fillNoops (min_instance, phase_one);
 		this.server_state.setRanPhaseOne (true);
 		return true;
+	}
+
+	private void fillNoops (int min_instance, PhaseOneResult phase_one) {
+		int[] instances = phase_one.instances;
+		if (instances.length == 0)
+			return;
+		int start = Math.max (min_instance, 0);
+		int max_instance = Arrays.stream (instances).max ().getAsInt ();
+		Set<Integer> known = Arrays.stream (instances).boxed ().collect (Collectors.toSet ());
+		for (int instance = start; instance <= max_instance; instance++) {
+			if (!known.contains (instance))
+				this.server_state.paxos_log.adopt (instance, CommandIdHelper.NOOP_VALUE);
+		}
 	}
 
 	void propose (PaxosInstance entry, int ballot) {
