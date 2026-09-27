@@ -48,7 +48,8 @@ public class RequestHistory {
 	}
 
 	public synchronized void addToPending (int requestid, RequestRecord record) {
-		this.pending.put (requestid, record);
+		if (!CommandIdHelper.isNoop (requestid))
+			this.pending.put (requestid, record);
 	}
 
 	public synchronized RequestRecord moveToProcessed (int requestid) {

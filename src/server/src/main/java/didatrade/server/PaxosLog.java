@@ -42,13 +42,14 @@ public class PaxosLog {
 	// MainLoop is the sole allocator. Keep the request/slot choice with the log.
 	public synchronized PaxosInstance assignPendingRequest (int position, RequestHistory history) {
 		PaxosInstance entry = this.log.get (position);
-		if (entry != null && (entry.isDecided () || entry.getProposedRequestId () >= 0))
+		if (entry != null && (entry.isDecided ()
+				|| !CommandIdHelper.isAbsent (entry.getProposedRequestId ())))
 			return entry;
 
 		Set<Integer> assigned = new HashSet<> ();
 		for (PaxosInstance candidate : this.log.values ()) {
 			int owned_request = candidate.getUnexecutedRequestId ();
-			if (owned_request >= 0)
+			if (CommandIdHelper.isClientRequest (owned_request))
 				assigned.add (owned_request);
 		}
 		RequestRecord pending = history.getFirstPendingExcluding (assigned);
@@ -63,9 +64,10 @@ public class PaxosLog {
 	// Binds a command Phase 1 already accepted. A later fresh request cannot reuse the slot.
 	public synchronized boolean adopt (int instance, int request_id) {
 		PaxosInstance entry = this.log.get (instance);
-		if (entry != null && entry.getProposedRequestId () >= 0)
+		if (entry != null && CommandIdHelper.isClientRequest (entry.getProposedRequestId ()))
 			return entry.getProposedRequestId () == request_id;
-		if (this.isRequestAssigned (request_id))
+		// A noop is not a client request, so several holes may hold the same value.
+		if (!CommandIdHelper.isNoop (request_id) && this.isRequestAssigned (request_id))
 			return false;
 		if (entry == null)
 			entry = this.testAndSetEntry (instance);
@@ -86,7 +88,7 @@ public class PaxosLog {
 				.toArray (PaxosInstance[]::new);
 	}
 
-	public synchronized int getMinUndecidedInstance () {
+	public synchronized int getMinUndecidedEntry () {
 		return this.log.entrySet ().stream ()
 				.filter (e -> !e.getValue ().isDecided ())
 				.map (entry -> entry.getKey ())
