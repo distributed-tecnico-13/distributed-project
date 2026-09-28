@@ -101,4 +101,33 @@ class PaxosInstanceLearnTest {
 		assertEquals (100, entry.getCommandId ());
 		assertEquals (4, entry.getAcceptBallot ());
 	}
+
+	@Test
+	void sameValueReproposalAdvancesAcceptBallot () {
+		PaxosInstance entry = new PaxosInstance (0);
+
+		assertFalse (entry.recordLearn (5, 100, 0, 2));
+		assertTrue (entry.recordLearn (5, 100, 1, 2));
+
+		assertFalse (entry.recordLearn (7, 100, 0, 2));
+		assertTrue (entry.recordLearn (7, 100, 1, 2));
+
+		assertEquals (100, entry.getCommandId ());
+		assertEquals (7, entry.getAcceptBallot ());
+		assertFalse (entry.recordLearn (7, 100, 0, 2));
+	}
+
+	@Test
+	void delayedLowerBallotDoesNotRegressAcceptBallot () {
+		PaxosInstance entry = new PaxosInstance (0);
+
+		assertFalse (entry.recordLearn (7, 100, 0, 2));
+		assertTrue (entry.recordLearn (7, 100, 1, 2));
+
+		assertFalse (entry.recordLearn (4, 100, 2, 2));
+		assertFalse (entry.recordLearn (4, 100, 0, 2));
+
+		assertEquals (100, entry.getCommandId ());
+		assertEquals (7, entry.getAcceptBallot ());
+	}
 }

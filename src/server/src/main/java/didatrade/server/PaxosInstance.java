@@ -83,7 +83,7 @@ public class PaxosInstance {
 
 	public synchronized boolean recordLearn (
 			int ballot, int value, int server_id, int quorum) {
-		if (this.decided)
+		if (this.decided && value != this.command_id)
 			return false;
 		LearnVotes votes = this.learn_votes.get (ballot);
 		if (votes == null) {
@@ -95,10 +95,21 @@ public class PaxosInstance {
 		votes.accepted_by.add (server_id);
 		if (votes.accepted_by.size () < quorum)
 			return false;
+		int highest_ballot = findHighestBallotWithQuorum (quorum);
+		boolean advanced = !this.decided || highest_ballot > this.accept_ballot;
 		this.command_id = votes.value;
-		this.accept_ballot = ballot;
+		this.accept_ballot = highest_ballot;
 		this.decided = true;
-		return true;
+		return advanced;
+	}
+
+	public synchronized int findHighestBallotWithQuorum(int quorum) {
+		int highest_ballot = -1;
+		for (int ballot : this.learn_votes.keySet()) {
+			if (getAcceptCount(ballot) >= quorum && ballot > highest_ballot)
+				highest_ballot = ballot;
+		}
+		return highest_ballot;
 	}
 
 	public synchronized int getAcceptCount (int ballot) {
