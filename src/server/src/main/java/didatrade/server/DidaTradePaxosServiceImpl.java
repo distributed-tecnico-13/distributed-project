@@ -31,9 +31,13 @@ public class DidaTradePaxosServiceImpl extends DidaTradePaxosServiceGrpc.DidaTra
 
 		this.server_state.applyDebugState ();
 
-		PaxosInstance[] entries = this.server_state.paxos_log.getAcceptedEntries (minInstance);
+		DidaTradeServerState.PhaseOneState phase_one = null;
+		PaxosInstance[] entries = null;
 
-		DidaTradeServerState.PhaseOneState phase_one = this.server_state.processPhaseOne (ballot);
+		synchronized (this.server_state) {
+			entries = this.server_state.paxos_log.getAcceptedEntries (minInstance);
+			phase_one = this.server_state.processPhaseOne (ballot);
+		}
 
 		DidaTradePaxos.PhaseOneReply.Builder response_builder = DidaTradePaxos.PhaseOneReply.newBuilder ();
 		response_builder.setMinInstance (minInstance);
