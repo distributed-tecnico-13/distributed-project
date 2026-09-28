@@ -33,32 +33,26 @@ final class PaxosProposer {
 		if (this.server_state.hasRunPhaseOne (ballot))
 			return true;
 
-		int min_instance = this.server_state.paxos_log.getMinUndecidedEntry ();
 		List<Integer> acceptors = this.server_state.scheduler.acceptors (ballot);
 		PhaseOneResult phase_one = this.runPhaseOne (
-				acceptors, acceptors.size (), ballot, min_instance);
+				acceptors, acceptors.size (), ballot);
 		if (phase_one.aborted)
 			return false;
 
-		for (int instance : phase_one.instances ()) {
-			PaxosInstance known_entry = this.server_state.paxos_log.getEntry (instance);
-			if (known_entry != null && known_entry.isDecided ())
-				continue;
+		for (int instance : phase_one.instances ())
 			this.server_state.paxos_log.adopt (instance, phase_one.commandFor (instance));
-		}
-		this.fillNoops (min_instance, phase_one);
+		this.fillNoops (phase_one);
 		this.server_state.setRanPhaseOne (ballot);
 		return true;
 	}
 
-	private void fillNoops (int min_instance, PhaseOneResult phase_one) {
+	private void fillNoops (PhaseOneResult phase_one) {
 		int[] instances = phase_one.instances;
 		if (instances.length == 0)
 			return;
-		int start = Math.max (min_instance, 0);
 		int max_instance = Arrays.stream (instances).max ().getAsInt ();
 		Set<Integer> known = Arrays.stream (instances).boxed ().collect (Collectors.toSet ());
-		for (int instance = start; instance <= max_instance; instance++) {
+		for (int instance = 0; instance <= max_instance; instance++) {
 			if (!known.contains (instance))
 				this.server_state.paxos_log.adopt (instance, CommandIdHelper.NOOP_VALUE);
 		}
@@ -66,10 +60,10 @@ final class PaxosProposer {
 
 	void propose (PaxosInstance entry, int ballot) {
 		try {
-			if (entry.isDecided () || !this.server_state.canProposeFor (ballot))
+			if (!this.server_state.canProposeFor (ballot))
 				return;
 			int instance = entry.getInstanceNb ();
-			int phase_two_value = entry.phaseTwoValueFor (ballot, entry.getProposedRequestId ());
+			int phase_two_value = entry.phaseTwoValueFor (ballot, entry.getValueToPropose ());
 			this.server_state.paxos_log.replaceProposedRequestId (instance, phase_two_value);
 			List<Integer> acceptors = this.server_state.scheduler.acceptors (ballot);
 			if (this.runPhaseTwo (instance, ballot, phase_two_value, acceptors,
@@ -84,9 +78,9 @@ final class PaxosProposer {
 	}
 
 	private PhaseOneResult runPhaseOne (
-			List<Integer> acceptors, int n_acceptors, int ballot, int min_instance) {
+			List<Integer> acceptors, int n_acceptors, int ballot) {
 		DidaTradePaxos.PhaseOneRequest request = DidaTradePaxos.PhaseOneRequest
-				.newBuilder ().setMinInstance (min_instance).setRequestballot (ballot).build ();
+				.newBuilder ().setRequestballot (ballot).build ();
 		PhaseOneResponseProcessor processor = new PhaseOneResponseProcessor (
 				this.server_state.scheduler, ballot);
 		ArrayList<DidaTradePaxos.PhaseOneReply> responses = new ArrayList<> ();

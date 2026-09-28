@@ -90,21 +90,11 @@ public class PaxosLog {
 			entry.setProposedRequestId (request_id);
 	}
 
-	public synchronized PaxosInstance[] getAcceptedEntries (int minInstance) {
+	public synchronized PaxosInstance[] getAcceptedEntries () {
 		return this.log.entrySet ().stream ()
-				.filter (e -> e.getKey () >= minInstance && e.getValue ().isAccepted ())
+				.filter (e -> e.getValue ().isAccepted ())
 				.map (entry -> entry.getValue ())
 				.toArray (PaxosInstance[]::new);
-	}
-
-	public synchronized int getMinUndecidedEntry () {
-		int instance = 0;
-		while (true) {
-			PaxosInstance entry = this.log.get (instance);
-			if (entry == null || !entry.isDecided ())
-				return instance;
-			instance++;
-		}
 	}
 
 	private boolean isRequestAssigned (int request_id) {

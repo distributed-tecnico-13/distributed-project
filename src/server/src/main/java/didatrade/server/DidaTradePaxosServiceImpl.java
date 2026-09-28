@@ -26,7 +26,6 @@ public class DidaTradePaxosServiceImpl extends DidaTradePaxosServiceGrpc.DidaTra
 	public void phaseone (DidaTradePaxos.PhaseOneRequest request, StreamObserver<DidaTradePaxos.PhaseOneReply> responseObserver) {
 		// System.out.println("Receive phase1 request: \n" + request);
 
-		int minInstance = request.getMinInstance ();
 		int ballot = request.getRequestballot ();
 
 		this.server_state.applyDebugState ();
@@ -35,12 +34,11 @@ public class DidaTradePaxosServiceImpl extends DidaTradePaxosServiceGrpc.DidaTra
 		PaxosInstance[] entries = null;
 
 		synchronized (this.server_state) {
-			entries = this.server_state.paxos_log.getAcceptedEntries (minInstance);
+			entries = this.server_state.paxos_log.getAcceptedEntries ();
 			phase_one = this.server_state.processPhaseOne (ballot);
 		}
 
 		DidaTradePaxos.PhaseOneReply.Builder response_builder = DidaTradePaxos.PhaseOneReply.newBuilder ();
-		response_builder.setMinInstance (minInstance);
 		response_builder.setServerid (this.server_state.my_id);
 		response_builder.setRequestballot (ballot);
 		response_builder.setAccepted (phase_one.accepted);

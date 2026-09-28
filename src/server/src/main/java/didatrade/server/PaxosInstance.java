@@ -103,10 +103,10 @@ public class PaxosInstance {
 		return advanced;
 	}
 
-	public synchronized int findHighestBallotWithQuorum(int quorum) {
+	public synchronized int findHighestBallotWithQuorum (int quorum) {
 		int highest_ballot = -1;
-		for (int ballot : this.learn_votes.keySet()) {
-			if (getAcceptCount(ballot) >= quorum && ballot > highest_ballot)
+		for (int ballot : this.learn_votes.keySet ()) {
+			if (getAcceptCount (ballot) >= quorum && ballot > highest_ballot)
 				highest_ballot = ballot;
 		}
 		return highest_ballot;
@@ -119,6 +119,10 @@ public class PaxosInstance {
 
 	public synchronized int getProposedRequestId () {
 		return this.proposal.proposed_request_id;
+	}
+
+	public synchronized int getValueToPropose () {
+		return this.decided ? this.command_id : this.proposal.proposed_request_id;
 	}
 
 	public synchronized int getUnexecutedRequestId () {
@@ -136,12 +140,16 @@ public class PaxosInstance {
 		return this.proposal.phaseTwoValueFor (ballot, selected_value);
 	}
 
-	// A claim belongs to one local worker; it is unrelated to Paxos acceptance.
+	// A claim belongs to one local worker; it is unrelated to Paxos acceptance. Nothing can
+	// change a decided slot, so it is re-proposed once per ballot and never retried; an
+	// undecided one is retried as soon as its backoff expires.
 	public synchronized boolean tryClaim (int ballot, long now_nanos) {
-		if (this.proposal.claimed || this.decided
-				|| CommandIdHelper.isAbsent (this.proposal.proposed_request_id)
-				|| (this.proposal.retry_ballot == ballot
-						&& now_nanos < this.proposal.retry_after_nanos))
+		if (this.proposal.claimed || CommandIdHelper.isAbsent (this.getValueToPropose ()))
+			return false;
+		if (this.decided && ballot <= this.proposal.phase_two_ballot)
+			return false;
+		if (!this.decided && this.proposal.retry_ballot == ballot
+				&& now_nanos < this.proposal.retry_after_nanos)
 			return false;
 		this.proposal.claimed = true;
 		return true;

@@ -36,8 +36,8 @@ class PhaseOneAtomicityTest {
 		// would itself serialize against testAndSetEntry/processPhaseTwo and hide the bug.
 		state.paxos_log = new PaxosLog () {
 			@Override
-			public PaxosInstance[] getAcceptedEntries (int minInstance) {
-				PaxosInstance[] entries = super.getAcceptedEntries (minInstance);
+			public PaxosInstance[] getAcceptedEntries () {
+				PaxosInstance[] entries = super.getAcceptedEntries ();
 				snapshotTaken.countDown ();
 				try {
 					releasePromise.await (2, TimeUnit.SECONDS);
@@ -53,7 +53,6 @@ class PhaseOneAtomicityTest {
 		List<DidaTradePaxos.PhaseOneReply> phase_one_replies = new ArrayList<> ();
 		Thread phase_one_thread = new Thread ( () -> {
 			DidaTradePaxos.PhaseOneRequest request = DidaTradePaxos.PhaseOneRequest.newBuilder ()
-					.setMinInstance (0)
 					.setRequestballot (5)
 					.build ();
 			service.phaseone (request, capture (phase_one_replies));

@@ -57,9 +57,11 @@ public class MainLoop implements Runnable {
 		if (!this.proposer.prepare (ballot))
 			return false;
 
+		// The scan starts at slot 0 so a new leader re-proposes the whole log Phase 1
+		// adopted, decided slots included.
 		boolean submitted = false;
-		int first = this.ordered_executor.getNextInstanceToExecute ();
-		for (int instance = first; instance < first + PaxosPipeline.CAPACITY; instance++) {
+		int limit = this.ordered_executor.getNextInstanceToExecute () + PaxosPipeline.CAPACITY;
+		for (int instance = 0; instance < limit; instance++) {
 			if (!this.pipeline.hasCapacity ())
 				break;
 			PaxosInstance entry = this.server_state.paxos_log.assignPendingRequest (

@@ -5,17 +5,15 @@ syntax = "proto3";
 package didatrade;
 
 message PhaseOneRequest {
-  int32 minInstance        = 1;
-  int32 requestballot	= 2;
+  int32 requestballot	= 1;
 }
 
 message PhaseOneReply {
-  int32 minInstance        = 1;
-  int32 serverid        = 2;
-  int32 requestballot	= 3;
-  bool  accepted 	= 4;
-  int32 maxballot       = 5;
-  repeated PhaseOneResponseLogObject responseLogObjects = 6;
+  int32 serverid        = 1;
+  int32 requestballot	= 2;
+  bool  accepted 	= 3;
+  int32 maxballot       = 4;
+  repeated PhaseOneResponseLogObject responseLogObjects = 5;
 }
 
 message PhaseOneResponseLogObject {
