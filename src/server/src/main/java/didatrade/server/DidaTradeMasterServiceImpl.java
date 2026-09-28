@@ -14,14 +14,11 @@ public class DidaTradeMasterServiceImpl extends DidaTradeMasterServiceGrpc.DidaT
 
 	@Override
 	public void newballot (DidaTradeMaster.NewBallotRequest request, StreamObserver<DidaTradeMaster.NewBallotReply> responseObserver) {
-		System.out.println (request);
-
 		int request_id = request.getReqid ();
 		int new_ballot = request.getNewballot ();
 		int completed_ballot = request.getCompletedballot ();;
-
-		// for debug purposes
-		System.out.println ("Current ballot = " + this.server_state.getCurrentBallot () + " new ballot = " + new_ballot + " completed ballot = " + completed_ballot);
+		Logger.log (this.server_state, "ballot " + this.server_state.getCurrentBallot ()
+				+ " -> " + new_ballot + " completed=" + completed_ballot);
 
 		this.server_state.setCompletedBallot (completed_ballot);
 
@@ -46,13 +43,10 @@ public class DidaTradeMasterServiceImpl extends DidaTradeMasterServiceGrpc.DidaT
 
 	@Override
 	public void activate (DidaTradeMaster.ActivateRequest request, StreamObserver<DidaTradeMaster.ActivateReply> responseObserver) {
-		System.out.println (request);
-
 		int request_id = request.getReqid ();
 		int completed_ballot = request.getCompletedballot ();;
-
-		// for debug purposes
-		System.out.println ("Current ballot = " + this.server_state.getCurrentBallot () + " activated ballot = " + completed_ballot);
+		Logger.log (this.server_state, "activate ballot=" + this.server_state.getCurrentBallot ()
+				+ " completed=" + completed_ballot);
 
 		// do stuff
 
@@ -67,9 +61,6 @@ public class DidaTradeMasterServiceImpl extends DidaTradeMasterServiceGrpc.DidaT
 
 	@Override
 	public void setdebug (DidaTradeMaster.SetDebugRequest request, StreamObserver<DidaTradeMaster.SetDebugReply> responseObserver) {
-		// for debug purposes
-		System.out.println (request);
-
 		boolean response_value = true;
 
 		int request_id = request.getReqid ();

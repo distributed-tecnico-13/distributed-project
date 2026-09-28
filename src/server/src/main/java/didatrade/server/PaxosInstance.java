@@ -136,6 +136,10 @@ public class PaxosInstance {
 		return this.proposal.phaseTwoValueFor (ballot, selected_value);
 	}
 
+	public synchronized boolean isNewPhaseTwoBallot (int ballot) {
+		return ballot > this.proposal.phase_two_ballot;
+	}
+
 	// A claim belongs to one local worker; it is unrelated to Paxos acceptance.
 	public synchronized boolean tryClaim (int ballot, long now_nanos) {
 		if (this.proposal.claimed || this.decided

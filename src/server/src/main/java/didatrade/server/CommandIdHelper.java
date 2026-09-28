@@ -19,4 +19,12 @@ final class CommandIdHelper {
 	static boolean isClientRequest (int command_id) {
 		return command_id >= 0;
 	}
+
+	static String label (int command_id) {
+		if (isNoop (command_id))
+			return "noop";
+		if (isAbsent (command_id))
+			return "absent";
+		return Integer.toString (command_id);
+	}
 }

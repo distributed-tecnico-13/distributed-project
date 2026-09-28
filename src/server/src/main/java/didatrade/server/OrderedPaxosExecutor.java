@@ -20,11 +20,16 @@ final class OrderedPaxosExecutor {
 			PaxosInstance entry = this.server_state.paxos_log.getEntry (this.next_instance_to_execute);
 			if (entry == null || !entry.isDecided ())
 				return executed_count;
-			if (!entry.isExecuted () && !this.executeCommand (entry))
+			boolean already_executed = entry.isExecuted ();
+			if (!already_executed && !this.executeCommand (entry))
 				return executed_count;
 			entry.markExecuted ();
 			this.next_instance_to_execute++;
 			executed_count++;
+			if (!already_executed)
+				Logger.log (this.server_state, "execute instance=" + entry.getInstanceNb ()
+						+ " value=" + CommandIdHelper.label (entry.getCommandId ())
+						+ " next=" + this.next_instance_to_execute);
 		}
 	}
 
