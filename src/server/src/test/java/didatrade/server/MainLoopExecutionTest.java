@@ -39,13 +39,25 @@ class MainLoopExecutionTest {
 			state.main_loop.wakeup ();
 
 			assertTrue (response.get (2, TimeUnit.SECONDS));
-			assertTrue (state.paxos_log.getEntry (0).isExecuted ());
+			// setResponse wakes this thread before markExecuted runs.
+			assertTrue (executedWithin (state.paxos_log.getEntry (0), 2, TimeUnit.SECONDS));
 		} finally {
 			loop_thread.interrupt ();
 			loop_thread.join (2_000);
 			rpc_waiter.shutdownNow ();
 			assertFalse (loop_thread.isAlive ());
 		}
+	}
+
+	private static boolean executedWithin (PaxosInstance entry, long timeout, TimeUnit unit)
+			throws InterruptedException {
+		long deadline = System.nanoTime () + unit.toNanos (timeout);
+		while (!entry.isExecuted ()) {
+			if (System.nanoTime () >= deadline)
+				return false;
+			Thread.sleep (1);
+		}
+		return true;
 	}
 
 	private static final class TrackingHistory extends RequestHistory {
