@@ -4,16 +4,16 @@ import java.util.HashSet;
 import java.util.Set;
 
 public class PaxosInstance {
-	int instance_nb;
+	private int instance_nb;
 	private int command_id;
-	int read_ballot;
+	private int read_ballot;
 	private int write_ballot;
 	private int accepted_value;
 	private int accept_ballot;
 	private int learned_value;
 	private final Set<Integer> accepted_by = new HashSet<> ();
 	private boolean decided;
-	boolean value_is_locked;
+	private boolean value_is_locked;
 	private boolean executed;
 	// This server's attempt to propose the slot.
 	private final LocalProposal proposal = new LocalProposal ();
@@ -70,6 +70,30 @@ public class PaxosInstance {
 		this.write_ballot = ballot;
 	}
 
+	public synchronized boolean isAccepted () {
+		return this.write_ballot != -1;
+	}
+
+	public synchronized boolean isNoop () {
+		return CommandIdHelper.isNoop (this.command_id);
+	}
+
+	public synchronized int getInstanceNb () {
+		return this.instance_nb;
+	}
+
+	public synchronized int getAcceptedValue () {
+		return this.accepted_value;
+	}
+
+	public synchronized int getWriteBallot () {
+		return this.write_ballot;
+	}
+
+	public synchronized AcceptedSnapshot getAcceptedSnapshot () {
+		return new AcceptedSnapshot (this.accepted_value, this.write_ballot);
+	}
+
 	public synchronized boolean recordLearn (
 			int ballot, int value, int server_id, int quorum) {
 		if (this.decided || ballot < this.accept_ballot)
@@ -99,7 +123,7 @@ public class PaxosInstance {
 
 	public synchronized int getUnexecutedRequestId () {
 		if (this.executed)
-			return -1;
+			return CommandIdHelper.ABSENT_VALUE;
 		return this.decided ? this.command_id : this.proposal.proposed_request_id;
 	}
 
@@ -114,7 +138,8 @@ public class PaxosInstance {
 
 	// A claim belongs to one local worker; it is unrelated to Paxos acceptance.
 	public synchronized boolean tryClaim (int ballot, long now_nanos) {
-		if (this.proposal.claimed || this.decided || this.proposal.proposed_request_id < 0
+		if (this.proposal.claimed || this.decided
+				|| CommandIdHelper.isAbsent (this.proposal.proposed_request_id)
 				|| (this.proposal.retry_ballot == ballot
 						&& now_nanos < this.proposal.retry_after_nanos))
 			return false;
@@ -131,7 +156,8 @@ public class PaxosInstance {
 
 	// -1 means no retry is scheduled; a positive result is a bounded wait.
 	public synchronized long retryDelayMillis (int ballot, long now_nanos) {
-		if (this.proposal.claimed || this.decided || this.proposal.proposed_request_id < 0)
+		if (this.proposal.claimed || this.decided
+				|| CommandIdHelper.isAbsent (this.proposal.proposed_request_id))
 			return -1;
 		if (this.proposal.retry_ballot != ballot
 				|| now_nanos >= this.proposal.retry_after_nanos)
@@ -170,7 +196,7 @@ public class PaxosInstance {
 	}
 
 	private static final class LocalProposal {
-		private int proposed_request_id = -1;
+		private int proposed_request_id = CommandIdHelper.ABSENT_VALUE;
 		private boolean claimed;
 		private int retry_ballot = -1;
 		private long retry_after_nanos;
@@ -186,6 +212,16 @@ public class PaxosInstance {
 				this.phase_two_value = selected_value;
 			}
 			return this.phase_two_value;
+		}
+	}
+
+	public static final class AcceptedSnapshot {
+		final int value;
+		final int valballot;
+
+		AcceptedSnapshot(int value, int valballot) {
+			this.value = value;
+			this.valballot = valballot;
 		}
 	}
 

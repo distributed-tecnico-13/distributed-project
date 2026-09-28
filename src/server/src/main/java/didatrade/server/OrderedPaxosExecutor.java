@@ -20,7 +20,7 @@ final class OrderedPaxosExecutor {
 			PaxosInstance entry = this.server_state.paxos_log.getEntry (this.next_instance_to_execute);
 			if (entry == null || !entry.isDecided ())
 				return executed_count;
-			if (!entry.isExecuted () && !this.executeCommand (entry.getCommandId ()))
+			if (!entry.isExecuted () && !this.executeCommand (entry))
 				return executed_count;
 			entry.markExecuted ();
 			this.next_instance_to_execute++;
@@ -28,7 +28,10 @@ final class OrderedPaxosExecutor {
 		}
 	}
 
-	private boolean executeCommand (int command_id) {
+	private boolean executeCommand (PaxosInstance entry) {
+		if (entry.isNoop ())
+			return true;
+		int command_id = entry.getCommandId ();
 		RequestRecord record = this.server_state.req_history.getIfExists (command_id);
 		if (record == null)
 			return false; // A later client arrival wakes MainLoop; never skip this slot.

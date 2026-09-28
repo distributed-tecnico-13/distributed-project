@@ -1,6 +1,6 @@
 package didatrade.server;
 
-/** Single coordinator: claim log slots, dispatch consensus, execute in order. */
+/** Single coordinator: prepare once per ballot, claim log slots, execute in order. */
 public class MainLoop implements Runnable {
 	DidaTradeServerState server_state;
 
@@ -54,7 +54,7 @@ public class MainLoop implements Runnable {
 
 	private boolean scheduleConsensus () {
 		int ballot = this.server_state.getCurrentBallot ();
-		if (!this.server_state.canProposeFor (ballot))
+		if (!this.proposer.prepare (ballot))
 			return false;
 
 		boolean submitted = false;
