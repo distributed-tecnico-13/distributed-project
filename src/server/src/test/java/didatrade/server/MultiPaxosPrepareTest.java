@@ -68,8 +68,7 @@ class MultiPaxosPrepareTest {
 
 	@Test
 	void prepareStillSucceedsWhenOneAcceptorRpcFails () throws Exception {
-		DidaTradeServerState state = this.stateWithAcceptors (serverId ->
-				serverId == 2 ? failingService () : acceptingService (serverId, new AtomicInteger (), new CountDownLatch (0)));
+		DidaTradeServerState state = this.stateWithAcceptors (serverId -> serverId == 2 ? failingService () : acceptingService (serverId, new AtomicInteger (), new CountDownLatch (0)));
 		state.my_id = 0;
 		PaxosProposer proposer = new PaxosProposer (state);
 
@@ -79,8 +78,7 @@ class MultiPaxosPrepareTest {
 
 	@Test
 	void prepareFailsWhenOnlyOneAcceptorRepliesSuccessfully () throws Exception {
-		DidaTradeServerState state = this.stateWithAcceptors (serverId ->
-				serverId == 0 ? acceptingService (serverId, new AtomicInteger (), new CountDownLatch (0)) : failingService ());
+		DidaTradeServerState state = this.stateWithAcceptors (serverId -> serverId == 0 ? acceptingService (serverId, new AtomicInteger (), new CountDownLatch (0)) : failingService ());
 		state.my_id = 0;
 		PaxosProposer proposer = new PaxosProposer (state);
 

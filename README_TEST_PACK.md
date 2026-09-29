@@ -46,7 +46,7 @@ Tests server-wide ballot state:
 - ballot numbers never move backwards;
 - only the leader of the exact current ballot may propose;
 - lower prepares cannot undo a higher promise;
-- `completed_ballot` is derived only from the contiguous decided prefix and then uses the highest ballot inside that prefix.
+- `completed_ballot` follows the highest ballot among all decided log entries, including entries past a hole.
 
 ### `src/server/src/test/java/didatrade/server/RequestHistoryInvariantTest.java`
 

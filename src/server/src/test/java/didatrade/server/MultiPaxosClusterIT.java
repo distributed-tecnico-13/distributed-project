@@ -30,7 +30,7 @@ import io.grpc.ServerBuilder;
 class MultiPaxosClusterIT {
 
 	@Test
-	@Timeout (30)
+	@Timeout(30)
 	void threeReplicaClusterProcessesConcurrentRequestsAndConverges () throws Exception {
 		try (Cluster cluster = new Cluster ()) {
 			List<Future<Boolean>> requests = new ArrayList<> ();
@@ -38,18 +38,16 @@ class MultiPaxosClusterIT {
 				int request_id = 10_000 + i;
 				int user_id = 100 + i;
 				int cash = 1000 + i;
-				requests.add (cluster.workers.submit ( () ->
-						cluster.broadcastAddUser (request_id, user_id, cash, 50)));
+				requests.add (cluster.workers.submit ( () -> cluster.broadcastAddUser (request_id, user_id, cash, 50)));
 			}
 			for (Future<Boolean> request : requests)
 				assertTrue (request.get (15, TimeUnit.SECONDS));
 
 			for (int user_id = 100; user_id < 112; user_id++) {
 				int expected_user = user_id;
-				assertTrue (awaitCondition ( () ->
-						cluster.states[0].trade_manager.balance (expected_user) != -1
-								&& cluster.states[1].trade_manager.balance (expected_user) != -1
-								&& cluster.states[2].trade_manager.balance (expected_user) != -1,
+				assertTrue (awaitCondition ( () -> cluster.states[0].trade_manager.balance (expected_user) != -1
+						&& cluster.states[1].trade_manager.balance (expected_user) != -1
+						&& cluster.states[2].trade_manager.balance (expected_user) != -1,
 						5, TimeUnit.SECONDS));
 				int balance = cluster.states[0].trade_manager.balance (user_id);
 				assertEquals (balance, cluster.states[1].trade_manager.balance (user_id));
@@ -59,7 +57,7 @@ class MultiPaxosClusterIT {
 	}
 
 	@Test
-	@Timeout (30)
+	@Timeout(30)
 	void quorumProgressesWithOneFollowerFrozenAndFollowerCatchesUpAfterUnfreeze () throws Exception {
 		try (Cluster cluster = new Cluster ()) {
 			cluster.states[1].setDebugMode (2);
@@ -79,7 +77,7 @@ class MultiPaxosClusterIT {
 	}
 
 	@Test
-	@Timeout (30)
+	@Timeout(30)
 	void newLeaderRunsNewBallotAndReproposesAlreadyChosenValue () throws Exception {
 		try (Cluster cluster = new Cluster ()) {
 			assertTrue (cluster.broadcastAddUser (30_001, 300, 777, 33));
@@ -92,9 +90,8 @@ class MultiPaxosClusterIT {
 
 			assertTrue (awaitCondition ( () -> cluster.states[1].hasRunPhaseOne (1),
 					5, TimeUnit.SECONDS));
-			assertTrue (awaitCondition ( () ->
-					cluster.states[0].paxos_log.getEntry (0).getWriteBallot () >= 1
-							&& cluster.states[1].paxos_log.getEntry (0).getWriteBallot () >= 1,
+			assertTrue (awaitCondition ( () -> cluster.states[0].paxos_log.getEntry (0).getWriteBallot () >= 1
+					&& cluster.states[1].paxos_log.getEntry (0).getWriteBallot () >= 1,
 					5, TimeUnit.SECONDS));
 
 			for (DidaTradeServerState state : cluster.states) {
@@ -131,8 +128,7 @@ class MultiPaxosClusterIT {
 		private final DidaTradeServerState[] states = new DidaTradeServerState[REPLICAS];
 		private final Server[] servers = new Server[REPLICAS];
 		private final ManagedChannel[] client_channels = new ManagedChannel[REPLICAS];
-		private final DidaTradeMainServiceGrpc.DidaTradeMainServiceBlockingStub[] clients =
-				new DidaTradeMainServiceGrpc.DidaTradeMainServiceBlockingStub[REPLICAS];
+		private final DidaTradeMainServiceGrpc.DidaTradeMainServiceBlockingStub[] clients = new DidaTradeMainServiceGrpc.DidaTradeMainServiceBlockingStub[REPLICAS];
 		private final ExecutorService workers = Executors.newCachedThreadPool ();
 
 		Cluster() throws Exception {
@@ -253,4 +249,3 @@ class MultiPaxosClusterIT {
 		throw new IOException ("Could not find three consecutive free ports");
 	}
 }
-
