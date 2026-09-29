@@ -197,11 +197,11 @@ public final class DidaTradeServerState {
 		return this.debug_state;
 	}
 
-	public synchronized void applyDebugState () {
+	public void applyDebugState () {
 		this.debug_state.apply ();
 	}
 
-	public synchronized void setDebugMode (int mode) {
+	public void setDebugMode (int mode) {
 		this.debug_state.setDebugMode (mode);
 	}
 
