@@ -19,6 +19,10 @@ public class PaxosLog {
 		return this.log.get (position);
 	}
 
+	public synchronized PaxosInstance[] entries () {
+		return this.log.values ().toArray (PaxosInstance[]::new);
+	}
+
 	public synchronized PaxosInstance testAndSetEntry (int position) {
 		PaxosInstance entry = this.log.get (position);
 

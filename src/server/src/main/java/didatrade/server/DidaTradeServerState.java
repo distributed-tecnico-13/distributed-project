@@ -136,17 +136,9 @@ public final class DidaTradeServerState {
 
 	public synchronized int findMaxDecidedBallot () {
 		int ballot = -1;
-		int length = this.paxos_log.length ();
-
-		for (int i = 0; i < length; i++) {
-			PaxosInstance entry = this.paxos_log.getEntry (i);
-			if (entry == null)
-				return ballot;
-			if (!entry.isDecided ())
-				return ballot;
-			else if (entry.getAcceptBallot () > ballot)
+		for (PaxosInstance entry : this.paxos_log.entries ()) {
+			if (entry.isDecided () && entry.getAcceptBallot () > ballot)
 				ballot = entry.getAcceptBallot ();
-
 		}
 		return ballot;
 	}

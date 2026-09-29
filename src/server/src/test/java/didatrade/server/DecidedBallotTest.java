@@ -7,13 +7,14 @@ import org.junit.jupiter.api.Test;
 class DecidedBallotTest {
 
 	@Test
-	void stopsAtTheFirstHoleEvenWhenALaterSlotIsDecided () {
+	void reportsTheHighestDecidedBallotPastAHole () {
 		DidaTradeServerState state = new DidaTradeServerState ();
 		state.paxos_log = new PaxosLog ();
 		state.paxos_log.testAndSetEntry (0).decide (1, 101);
-		state.paxos_log.testAndSetEntry (2).decide (4, 201);
+		state.paxos_log.testAndSetEntry (1);
+		state.paxos_log.testAndSetEntry (5).decide (4, 201);
 
-		assertEquals (1, state.findMaxDecidedBallot ());
+		assertEquals (4, state.findMaxDecidedBallot ());
 	}
 
 	@Test

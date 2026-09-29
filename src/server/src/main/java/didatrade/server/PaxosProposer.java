@@ -71,7 +71,7 @@ final class PaxosProposer {
 				return;
 
 			if (entry.decide (ballot, phase_two_value))
-				this.server_state.setCompletedBallot (ballot);
+				this.server_state.updateCompletedBallot (ballot);
 		} finally {
 			entry.releaseClaim (ballot, TimeUnit.MILLISECONDS.toNanos (RETRY_DELAY_MILLIS));
 		}
