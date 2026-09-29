@@ -1,0 +1,64 @@
+package didatrade.server;
+
+import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertSame;
+import static org.junit.jupiter.api.Assertions.assertTrue;
+
+import java.util.Set;
+
+import org.junit.jupiter.api.Disabled;
+import org.junit.jupiter.api.Test;
+
+class RequestHistoryInvariantTest {
+
+	@Test
+	void sentinelIdsAreNeverQueuedAsClientRequests () {
+		RequestHistory history = new RequestHistory ();
+
+		assertFalse (history.addToPending (CommandIdHelper.ABSENT_VALUE,
+				new RequestRecord (CommandIdHelper.ABSENT_VALUE)));
+		assertFalse (history.addToPending (CommandIdHelper.NOOP_VALUE,
+				new RequestRecord (CommandIdHelper.NOOP_VALUE)));
+		assertNull (history.getIfPending (CommandIdHelper.ABSENT_VALUE));
+		assertNull (history.getIfPending (CommandIdHelper.NOOP_VALUE));
+	}
+
+	@Test
+	void processedRecordRemainsDiscoverableButIsNoLongerPending () {
+		RequestHistory history = new RequestHistory ();
+		RequestRecord record = new RequestRecord (101);
+		assertTrue (history.addToPending (101, record));
+
+		assertSame (record, history.moveToProcessed (101));
+		assertNull (history.getIfPending (101));
+		assertSame (record, history.getIfProcessed (101));
+		assertSame (record, history.getIfExists (101));
+	}
+
+	@Test
+	void pendingSelectionSkipsEveryExcludedRequest () {
+		RequestHistory history = new RequestHistory ();
+		RequestRecord first = new RequestRecord (101);
+		RequestRecord second = new RequestRecord (202);
+		assertTrue (history.addToPending (101, first));
+		assertTrue (history.addToPending (202, second));
+
+		RequestRecord selected = history.getFirstPendingExcluding (Set.of (101));
+		assertSame (second, selected);
+	}
+
+	@Disabled("Potential idempotency bug: decide desired duplicate-request semantics before enabling")
+	@Test
+	void duplicatePendingRequestIdMustNotReplaceRecordAlreadyWaitedOnByOriginalRpc () {
+		RequestHistory history = new RequestHistory ();
+		RequestRecord original = new RequestRecord (101);
+		RequestRecord retry = new RequestRecord (101);
+		assertTrue (history.addToPending (101, original));
+
+		history.addToPending (101, retry);
+
+		// Replacing the original can strand the first RPC waiter forever.
+		assertSame (original, history.getIfPending (101));
+	}
+}
