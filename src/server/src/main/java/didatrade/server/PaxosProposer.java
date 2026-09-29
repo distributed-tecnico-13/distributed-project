@@ -54,7 +54,7 @@ final class PaxosProposer {
 		Set<Integer> known = Arrays.stream (instances).boxed ().collect (Collectors.toSet ());
 		for (int instance = 0; instance <= max_instance; instance++) {
 			if (!known.contains (instance))
-				this.server_state.paxos_log.adopt (instance, CommandIdHelper.NOOP_VALUE);
+				this.server_state.paxos_log.fillNoop (instance);
 		}
 	}
 

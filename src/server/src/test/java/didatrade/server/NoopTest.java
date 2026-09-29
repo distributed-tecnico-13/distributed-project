@@ -19,10 +19,10 @@ class NoopTest {
 	void severalHolesHoldTheSameNoop () {
 		PaxosLog log = new PaxosLog ();
 
-		assertTrue (log.adopt (0, CommandIdHelper.NOOP_VALUE));
-		assertTrue (log.adopt (1, CommandIdHelper.NOOP_VALUE));
-		assertTrue (log.adopt (3, CommandIdHelper.NOOP_VALUE));
-		assertTrue (log.adopt (1, CommandIdHelper.NOOP_VALUE));
+		assertTrue (log.fillNoop (0));
+		assertTrue (log.fillNoop (1));
+		assertTrue (log.fillNoop (3));
+		assertTrue (log.fillNoop (1));
 
 		assertEquals (CommandIdHelper.NOOP_VALUE, log.getEntry (0).getProposedRequestId ());
 		assertEquals (CommandIdHelper.NOOP_VALUE, log.getEntry (1).getProposedRequestId ());
@@ -31,33 +31,46 @@ class NoopTest {
 	}
 
 	@Test
-	void noopDoesNotReplaceOrOccupyAClientRequest () {
+	void fillNoopDoesNotReplaceAClientRequest () {
 		PaxosLog log = new PaxosLog ();
 		assertTrue (log.adopt (2, 301));
 
-		assertFalse (log.adopt (2, CommandIdHelper.NOOP_VALUE));
+		assertFalse (log.fillNoop (2));
 		assertEquals (301, log.getEntry (2).getProposedRequestId ());
-		assertTrue (log.adopt (0, CommandIdHelper.NOOP_VALUE));
-		assertTrue (log.adopt (1, CommandIdHelper.NOOP_VALUE));
-		assertFalse (log.adopt (4, 301));
-		assertNull (log.getEntry (4));
+		assertTrue (log.fillNoop (0));
+		assertTrue (log.fillNoop (1));
+		assertTrue (log.adopt (4, 301));
+		assertEquals (301, log.getEntry (4).getProposedRequestId ());
+		assertEquals (301, log.getEntry (2).getProposedRequestId ());
 	}
 
 	@Test
-	void phaseOneClientRequestReplacesAnUnchosenNoop () {
+	void phaseOneClientRequestReplacesAFilledNoop () {
 		PaxosLog log = new PaxosLog ();
-		assertTrue (log.adopt (2, CommandIdHelper.NOOP_VALUE));
+		assertTrue (log.fillNoop (2));
 
 		assertTrue (log.adopt (2, 301));
 		assertEquals (301, log.getEntry (2).getProposedRequestId ());
+	}
+
+	@Test
+	void adoptOverridesALocalClientCandidateWithARecoveredNoop () {
+		PaxosLog log = new PaxosLog ();
+		assertTrue (log.adopt (2, 301));
+
+		// Phase 1 for this ballot discovered noop as the highest-accepted value at slot 2 -
+		// that is a Paxos-mandated recovery, unlike fillNoop's speculative fill, so it must
+		// override the local candidate.
+		assertTrue (log.adopt (2, CommandIdHelper.NOOP_VALUE));
+		assertEquals (CommandIdHelper.NOOP_VALUE, log.getEntry (2).getProposedRequestId ());
 	}
 
 	@Test
 	void pendingRequestSkipsNoopSlots () {
 		PaxosLog log = new PaxosLog ();
 		RequestHistory history = new RequestHistory ();
-		log.adopt (0, CommandIdHelper.NOOP_VALUE);
-		log.adopt (1, CommandIdHelper.NOOP_VALUE);
+		log.fillNoop (0);
+		log.fillNoop (1);
 		history.addToPending (100, new RequestRecord (100));
 
 		assertEquals (CommandIdHelper.NOOP_VALUE,

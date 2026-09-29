@@ -52,6 +52,9 @@ public class PaxosLog {
 			if (CommandIdHelper.isClientRequest (owned_request))
 				assigned.add (owned_request);
 		}
+		// This is optional, the executor executes each command id only once.
+		// In Phase one proposing the same command id in multiple slots is possible.
+		// But because its cheap to prevent it here for the proposer, we do it.
 		RequestRecord pending = history.getFirstPendingExcluding (assigned);
 		if (pending == null)
 			return entry;
@@ -61,27 +64,27 @@ public class PaxosLog {
 		return entry;
 	}
 
-	// Binds a command Phase 1 discovered as already accepted for this instance. A fresh
-	// discovery always overrides a stale, not-yet-decided local candidate; a noop fill
-	// (fillNoops) must never clobber a real candidate; a decided slot never changes.
 	public synchronized boolean adopt (int instance, int request_id) {
 		PaxosInstance entry = this.log.get (instance);
 		if (entry != null) {
-			int existing = entry.getProposedRequestId ();
-			if (existing == request_id)
+			if (entry.getProposedRequestId () == request_id)
 				return true;
 			if (entry.isDecided ())
 				return entry.getCommandId () == request_id;
-			if (CommandIdHelper.isNoop (request_id) && CommandIdHelper.isClientRequest (existing))
-				return false;
 		}
-		// A noop is not a client request, so several holes may hold the same value.
-		if (!CommandIdHelper.isNoop (request_id) && this.isRequestAssigned (request_id))
-			return false;
 		if (entry == null)
 			entry = this.testAndSetEntry (instance);
 		entry.setProposedRequestId (request_id);
 		return true;
+	}
+
+	// Speculatively fills an instance Phase 1 said nothing about.
+	public synchronized boolean fillNoop (int instance) {
+		PaxosInstance entry = this.log.get (instance);
+		if (entry != null && !entry.isDecided ()
+				&& CommandIdHelper.isClientRequest (entry.getProposedRequestId ()))
+			return false;
+		return this.adopt (instance, CommandIdHelper.NOOP_VALUE);
 	}
 
 	public synchronized void replaceProposedRequestId (int position, int request_id) {
@@ -95,13 +98,5 @@ public class PaxosLog {
 				.filter (e -> e.getValue ().isAccepted ())
 				.map (entry -> entry.getValue ())
 				.toArray (PaxosInstance[]::new);
-	}
-
-	private boolean isRequestAssigned (int request_id) {
-		for (PaxosInstance candidate : this.log.values ()) {
-			if (candidate.getUnexecutedRequestId () == request_id)
-				return true;
-		}
-		return false;
 	}
 }

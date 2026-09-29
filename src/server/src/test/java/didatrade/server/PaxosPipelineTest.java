@@ -3,7 +3,6 @@ package didatrade.server;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
-import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.HashSet;
@@ -18,6 +17,9 @@ import org.junit.jupiter.api.Test;
 
 class PaxosPipelineTest {
 
+	// This exclusivity is optional: the executor executes each command id only once no matter
+	// how many slots hold it. assignPendingRequest only avoids the duplicate because it's cheap
+	// to do here for the proposer; it is not required for correctness.
 	@Test
 	void logAssignsDistinctPendingRequestsToDistinctSlots () throws Exception {
 		PaxosLog log = new PaxosLog ();
@@ -50,6 +52,9 @@ class PaxosPipelineTest {
 		}
 	}
 
+	// Also optional: skipping a decided-but-unexecuted request here is just the same cheap
+	// dedup optimization, not a safety requirement - the executor would collapse a duplicate
+	// proposal to one execution regardless.
 	@Test
 	void decidedButUnexecutedRequestIsNotAllocatedAgain () {
 		PaxosLog log = new PaxosLog ();
@@ -97,12 +102,24 @@ class PaxosPipelineTest {
 	}
 
 	@Test
-	void adoptRefusesToDoubleBindAStillActiveRequestToAnotherInstance () {
+	void adoptAllowsAnUndecidedCandidateToBeBoundToAnotherSlot () {
 		PaxosLog log = new PaxosLog ();
 		assertTrue (log.adopt (5, 301));
 
-		assertFalse (log.adopt (6, 301));
-		assertNull (log.getEntry (6));
+		assertTrue (log.adopt (6, 301));
+		assertEquals (301, log.getEntry (6).getProposedRequestId ());
+		assertEquals (301, log.getEntry (5).getProposedRequestId ());
+	}
+
+	// Phase 1 for instance 6 must be free to discover the same request already decided
+	// elsewhere; the executor, not the log, is what collapses that to one execution.
+	@Test
+	void adoptAllowsADecidedRequestToBeBoundToAnotherInstance () {
+		PaxosLog log = new PaxosLog ();
+		log.testAndSetEntry (5).decide (3, 301);
+
+		assertTrue (log.adopt (6, 301));
+		assertEquals (301, log.getEntry (6).getProposedRequestId ());
 	}
 
 	@Test
