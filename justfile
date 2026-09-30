@@ -12,6 +12,14 @@ lint *args:
 test *args:
     ./test.sh {{args}}
 
+test-integration:
+    ./tests/run-integration.sh
+
+test-e2e:
+    ./tests/e2e/run_all.sh
+
+test-full: test test-integration test-e2e
+
 start *args:
     ./start.sh {{args}}
 
