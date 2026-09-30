@@ -34,5 +34,5 @@ init: setup build
 reload: build
     just start --default
 
-pre-commit: lint build test
+pre-commit: lint build test test-integration
     @echo "pre-commit checks passed"
