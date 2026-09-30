@@ -18,7 +18,7 @@ test-integration:
 test-e2e:
     ./tests/e2e/run_all.sh
 
-test-full: test test-integration test-e2e
+test-full: test test-e2e
 
 start *args:
     ./start.sh {{args}}
@@ -34,5 +34,5 @@ init: setup build
 reload: build
     just start --default
 
-pre-commit: lint build test test-integration
+pre-commit: lint build test
     @echo "pre-commit checks passed"

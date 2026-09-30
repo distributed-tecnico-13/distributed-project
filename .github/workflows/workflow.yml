@@ -46,12 +46,6 @@ jobs:
         run: cp src/contract/intel-pom.xml src/contract/pom.xml
       - name: Run tests
         run: mvn -B --file src/pom.xml test
-      - name: Run integration tests
-        run: >
-          mvn -B --file src/pom.xml -pl server -am
-          -Dtest=MultiPaxosClusterIT
-          -Dsurefire.failIfNoSpecifiedTests=false
-          test
 
   build:
     name: Build

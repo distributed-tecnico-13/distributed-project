@@ -13,7 +13,18 @@ if [[ ! -f "$ROOT/src/contract/pom.xml" ]]; then
     esac
 fi
 
+# Dependency modules have no Integration_* classes. failIfNoSpecifiedTests stays
+# false for them; the report check below fails the run if the server module
+# itself selected nothing.
+rm -rf "$ROOT/src/server/target/surefire-reports"
 mvn -B -f "$ROOT/src/pom.xml" -pl server -am \
-    -Dtest=MultiPaxosClusterIT \
+    -Dtest=Integration_* \
     -Dsurefire.failIfNoSpecifiedTests=false \
     test
+
+shopt -s nullglob
+reports=("$ROOT"/src/server/target/surefire-reports/TEST-*Integration_*.xml)
+if ((${#reports[@]} == 0)); then
+    echo "no Integration_* tests ran in the server module" >&2
+    exit 1
+fi

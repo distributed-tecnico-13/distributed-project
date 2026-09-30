@@ -77,9 +77,9 @@ It is marked `@Disabled` so it does not break the normal suite while the team se
 
 ## 3. Real-TCP integration tests
 
-### `src/server/src/test/java/didatrade/server/MultiPaxosClusterIT.java`
+### `src/server/src/test/java/didatrade/server/Integration_MultiPaxosClusterTest.java`
 
-This class launches three real DidaTrade states and three real gRPC servers over loopback TCP. It is named `*IT`, so the normal Surefire scan does **not** run it automatically.
+This class launches three real DidaTrade states and three real gRPC servers over loopback TCP. The name ends in `Test`, so the normal test command runs it with the unit tests. `just test-integration` runs every class named `Integration_*`.
 
 It tests:
 

@@ -24,10 +24,10 @@ import io.grpc.Server;
 import io.grpc.ServerBuilder;
 
 /**
- * Real-TCP integration tests. The class ends in IT so the normal Surefire test scan does
- * not run it automatically. Run it explicitly with tests/run-integration.sh.
+ * Real-TCP cluster tests. The name ends in Test, so they run with the normal suite
+ * (`just test`). `just test-integration` selects every class named Integration_*.
  */
-class MultiPaxosClusterIT {
+class Integration_MultiPaxosClusterTest {
 
 	@Test
 	@Timeout(40)
