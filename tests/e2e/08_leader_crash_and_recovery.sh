@@ -6,56 +6,6 @@ activate_env
 ensure_built
 start_cluster
 
-# Keep the console alive until the asynchronous ballot reply arrives.
-run_ballot_console() {
-    local ballot="$1"
-    local replica="$2"
-    local output="$3"
-
-    local fifo="$E2E_LOG_DIR/ballot-console-input.fifo"
-    rm -f "$fifo"
-    mkfifo "$fifo"
-
-    (
-        cd "$REPO_ROOT/src/console"
-        timeout 45s mvn -q exec:java \
-            -Dexec.args="127.0.0.1 $BASE_PORT A" <"$fifo"
-    ) >"$output" 2>&1 &
-
-    local console_pid=$!
-
-    # Keep the FIFO open while we wait for the asynchronous RPC.
-    exec 3>"$fifo"
-
-    printf 'ballot %s %s\n' "$ballot" "$replica" >&3
-
-    local deadline=$((SECONDS + 20))
-
-    while (( SECONDS < deadline )); do
-        if grep -Eq \
-            "^reply received to new ballot request for ballot = ${ballot} with completed = [0-9]+$" \
-            "$output"; then
-            break
-        fi
-
-        if grep -Eq \
-            "^no reply received to new ballot request for ballot = ${ballot}$" \
-            "$output"; then
-            break
-        fi
-
-        sleep 0.1
-    done
-
-    # Only exit after giving the async RPC time to finish.
-    printf 'exit\n' >&3 || true
-    exec 3>&-
-
-    wait "$console_pid" || true
-    rm -f "$fifo"
-}
-
-
 # Put a chosen value in the log before losing the ballot-0 leader.
 run_app 60 \
     "add 760 1760 100\nexit\n" \
@@ -85,11 +35,7 @@ run_ballot_console \
     1 \
     "$E2E_LOG_DIR/console-new-leader.log"
 
-assert_contains "$E2E_LOG_DIR/console-new-leader.log" \
-  '^(console> )?reply received to new ballot request for ballot = 1 with completed = [0-9]+$'
-
-assert_not_contains "$E2E_LOG_DIR/console-new-leader.log" \
-  '^(console> )?no reply received to new ballot request for ballot = 1$'
+assert_ballot_accepted "$E2E_LOG_DIR/console-new-leader.log" 1
 
 
 # The surviving quorum must still process new commands.

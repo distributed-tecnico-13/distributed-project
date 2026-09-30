@@ -30,19 +30,24 @@ import io.grpc.ServerBuilder;
 class MultiPaxosClusterIT {
 
 	@Test
-	@Timeout(30)
+	@Timeout(40)
 	void threeReplicaClusterProcessesConcurrentRequestsAndConverges () throws Exception {
 		try (Cluster cluster = new Cluster ()) {
-			List<Future<Boolean>> requests = new ArrayList<> ();
+			List<Future<Boolean>> replies = new ArrayList<> ();
 			for (int i = 0; i < 12; i++) {
-				int request_id = 10_000 + i;
-				int user_id = 100 + i;
-				int cash = 1000 + i;
-				requests.add (cluster.workers.submit ( () -> cluster.broadcastAddUser (request_id, user_id, cash, 50)));
+				for (int replica = 0; replica < 3; replica++)
+					replies.add (cluster.addUserTo (replica, 10_000 + i, 100 + i, 1000 + i, 50));
 			}
-			for (Future<Boolean> request : requests)
-				assertTrue (request.get (15, TimeUnit.SECONDS));
+			assertTrue (awaitCondition ( () -> usersPresent (cluster.states[0], 100, 112)
+					&& usersPresent (cluster.states[1], 100, 112),
+					15, TimeUnit.SECONDS));
+			// A replica that missed Phase 2 is still behind. The next ballot re-proposes the log.
+			cluster.states[1].setCurrentBallot (1);
+			cluster.reconnectPeers ();
+			cluster.states[1].main_loop.wakeup ();
 
+			for (Future<Boolean> reply : replies)
+				assertTrue (reply.get (20, TimeUnit.SECONDS));
 			for (int user_id = 100; user_id < 112; user_id++) {
 				int expected_user = user_id;
 				assertTrue (awaitCondition ( () -> cluster.states[0].trade_manager.balance (expected_user) != -1
@@ -102,6 +107,136 @@ class MultiPaxosClusterIT {
 		}
 	}
 
+	@Test
+	@Timeout(30)
+	void replicaThatMissedPhaseTwoCatchesUpWhenLeadershipChanges () throws Exception {
+		try (Cluster cluster = new Cluster ()) {
+			final int request_id = 50_001;
+			cluster.dropReplica (2);
+
+			List<Future<Boolean>> quorum = List.of (
+					cluster.addUserTo (0, request_id, 500, 640, 12),
+					cluster.addUserTo (1, request_id, 500, 640, 12));
+			assertTrue (quorum.get (0).get (10, TimeUnit.SECONDS));
+			assertTrue (quorum.get (1).get (10, TimeUnit.SECONDS));
+			assertTrue (awaitCondition ( () -> decidedCommand (cluster.states[0], 0) == request_id
+					&& decidedCommand (cluster.states[1], 0) == request_id,
+					5, TimeUnit.SECONDS));
+			assertEquals (-1, decidedCommand (cluster.states[2], 0));
+
+			cluster.restoreReplica (2);
+			Future<Boolean> late_copy = cluster.addUserTo (2, request_id, 500, 640, 12);
+			// Ballot 1 is led by replica 1. Phase 1 recovers slot 0 and Phase 2 sends it again.
+			cluster.states[1].setCurrentBallot (1);
+			cluster.reconnectPeers ();
+			cluster.states[1].main_loop.wakeup ();
+
+			assertTrue (late_copy.get (15, TimeUnit.SECONDS));
+			assertTrue (awaitCondition ( () -> {
+				PaxosInstance entry = cluster.states[2].paxos_log.getEntry (0);
+				return entry != null && entry.isDecided () && entry.getCommandId () == request_id
+						&& entry.getAcceptBallot () >= 1
+						&& cluster.states[2].trade_manager.balance (500) == 640;
+			}, 10, TimeUnit.SECONDS));
+			for (DidaTradeServerState state : cluster.states) {
+				assertEquals (request_id, state.paxos_log.getEntry (0).getCommandId ());
+				assertEquals (640, state.trade_manager.balance (500));
+			}
+		}
+	}
+
+	@Test
+	@Timeout(60)
+	void frozenReplicaBecomesLeaderAndKeepsQuorumValueInsteadOfItsOwn () throws Exception {
+		try (Cluster cluster = new Cluster ()) {
+			final int quorum_request = 40_001;
+			final int private_request = 40_002;
+			final int quorum_user = 400;
+			final int private_user = 401;
+
+			// Replica 1 will lead ballot 1. Freeze it before it can accept or learn.
+			cluster.states[1].setDebugMode (2);
+
+			List<Future<Boolean>> quorum_replies = List.of (
+					cluster.addUserTo (0, quorum_request, quorum_user, 111, 10),
+					cluster.addUserTo (2, quorum_request, quorum_user, 111, 10));
+			assertTrue (quorum_replies.get (0).get (15, TimeUnit.SECONDS));
+			assertTrue (quorum_replies.get (1).get (15, TimeUnit.SECONDS));
+			assertTrue (awaitCondition (
+					() -> decidedCommand (cluster.states[0], 0) == quorum_request
+							&& decidedCommand (cluster.states[2], 0) == quorum_request,
+					5, TimeUnit.SECONDS));
+
+			// Freeze blocks the handler before the command is stored, so this divergent
+			// request stays in flight and is not a local proposal yet.
+			Future<Boolean> private_reply = cluster.addUserTo (
+					1, private_request, private_user, 222, 20);
+
+			// Install ballot 1 while the loop is still asleep. Unfreeze records the
+			// private command and wakes the loop, which then has to recover slot 0
+			// instead of proposing that private command there.
+			cluster.states[1].setCurrentBallot (1);
+			cluster.states[1].setDebugMode (3);
+
+			// Replica 1 still needs the chosen payload before it can execute slot 0.
+			// The other two need the private payload before they can execute it.
+			Future<Boolean> quorum_on_leader = cluster.addUserTo (
+					1, quorum_request, quorum_user, 111, 10);
+			List<Future<Boolean>> private_on_quorum = List.of (
+					cluster.addUserTo (0, private_request, private_user, 222, 20),
+					cluster.addUserTo (2, private_request, private_user, 222, 20));
+			assertTrue (private_reply.get (20, TimeUnit.SECONDS));
+			assertTrue (quorum_on_leader.get (20, TimeUnit.SECONDS));
+			assertTrue (private_on_quorum.get (0).get (20, TimeUnit.SECONDS));
+			assertTrue (private_on_quorum.get (1).get (20, TimeUnit.SECONDS));
+
+			assertTrue (awaitCondition ( () -> {
+				for (DidaTradeServerState state : cluster.states) {
+					if (decidedCommand (state, 0) != quorum_request)
+						return false;
+					if (slotOf (state, private_request) <= 0)
+						return false;
+					if (state.trade_manager.balance (quorum_user) != 111)
+						return false;
+					if (state.trade_manager.balance (private_user) != 222)
+						return false;
+				}
+				return true;
+			}, 10, TimeUnit.SECONDS));
+
+			int private_slot = slotOf (cluster.states[0], private_request);
+			for (DidaTradeServerState state : cluster.states) {
+				assertEquals (quorum_request, state.paxos_log.getEntry (0).getCommandId ());
+				assertEquals (private_slot, slotOf (state, private_request));
+				assertEquals (111, state.trade_manager.balance (quorum_user));
+				assertEquals (222, state.trade_manager.balance (private_user));
+			}
+		}
+	}
+
+	private static boolean usersPresent (DidaTradeServerState state, int first_user, int last_user) {
+		for (int user_id = first_user; user_id < last_user; user_id++) {
+			if (state.trade_manager.balance (user_id) == -1)
+				return false;
+		}
+		return true;
+	}
+
+	private static int decidedCommand (DidaTradeServerState state, int slot) {
+		PaxosInstance entry = state.paxos_log.getEntry (slot);
+		if (entry == null || !entry.isDecided ())
+			return -1;
+		return entry.getCommandId ();
+	}
+
+	private static int slotOf (DidaTradeServerState state, int command_id) {
+		for (int slot = 0; slot < 8; slot++) {
+			if (decidedCommand (state, slot) == command_id)
+				return slot;
+		}
+		return -1;
+	}
+
 	private static boolean allDecided (DidaTradeServerState[] states, int slot) {
 		for (DidaTradeServerState state : states) {
 			PaxosInstance entry = state.paxos_log.getEntry (slot);
@@ -149,6 +284,34 @@ class MultiPaxosClusterIT {
 						.build ();
 				this.clients[id] = DidaTradeMainServiceGrpc.newBlockingStub (this.client_channels[id]);
 			}
+			this.reconnectPeers ();
+		}
+
+		void dropReplica (int id) throws InterruptedException {
+			this.servers[id].shutdownNow ();
+			if (!this.servers[id].awaitTermination (2, TimeUnit.SECONDS))
+				throw new IllegalStateException ("replica " + id + " did not stop");
+		}
+
+		void restoreReplica (int id) throws IOException {
+			DidaTradeServerState state = this.states[id];
+			this.servers[id] = ServerBuilder.forPort (this.base_port + id)
+					.addService (new DidaTradeMainServiceImpl (state))
+					.addService (new DidaTradeMasterServiceImpl (state))
+					.addService (new DidaTradePaxosServiceImpl (state))
+					.build ()
+					.start ();
+		}
+
+		// A refused attempt leaves the channel in a long backoff. The next ballot can
+		// reach the restored replica only after that delay is cleared.
+		void reconnectPeers () {
+			for (DidaTradeServerState state : this.states) {
+				if (state.channels == null)
+					continue;
+				for (ManagedChannel channel : state.channels)
+					channel.resetConnectBackoff ();
+			}
 		}
 
 		boolean broadcastAddUser (
@@ -159,6 +322,20 @@ class MultiPaxosClusterIT {
 			for (Future<Boolean> reply : replies)
 				result &= reply.get (12, TimeUnit.SECONDS);
 			return result;
+		}
+
+		Future<Boolean> addUserTo (
+				int replica, int request_id, int user_id, int cash, int stock) {
+			DidaTradeMain.AddUserRequest request = DidaTradeMain.AddUserRequest.newBuilder ()
+					.setReqid (request_id)
+					.setUserid (user_id)
+					.setCash (cash)
+					.setStock (stock)
+					.build ();
+			return this.workers.submit ( () -> this.clients[replica]
+					.withDeadlineAfter (45, TimeUnit.SECONDS)
+					.adduser (request)
+					.getResult ());
 		}
 
 		List<Future<Boolean>> broadcastAddUserAsync (

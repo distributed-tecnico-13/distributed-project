@@ -34,3 +34,5 @@ dev_env
 # IntelliJ IDEA files
 *.iml
 .idea/
+
+logs

@@ -81,6 +81,9 @@ public class MainLoop implements Runnable {
 		int ballot = this.server_state.getCurrentBallot ();
 		if (!this.server_state.canProposeFor (ballot) || !this.pipeline.hasCapacity ())
 			return -1;
+		// A failed Phase 1 can leave pending requests unproposed without a bounded wait.
+		if (!this.server_state.hasRunPhaseOne (ballot))
+			return PaxosProposer.RETRY_DELAY_MILLIS;
 		int first = this.ordered_executor.getNextInstanceToExecute ();
 		long earliest = Long.MAX_VALUE;
 		long now = System.nanoTime ();
