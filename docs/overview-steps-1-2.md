@@ -1,62 +1,10 @@
-# Design overview: Steps 0–2
-
-This is a guide to the **current Schedule A implementation**. Step numbers follow
-[`project-description.pdf`](../project-description.pdf); they are not names for separate
-runtime modes. [`request-flow.md`](request-flow.md) describes an earlier baseline and
-should not be used as a description of the current proposer or execution loop.
-
-## Overview
-
-DidaTrade replicates a trading state machine across servers. Clients submit user, buy,
-sell, balance and dump requests through gRPC; replicas use Paxos log instances to agree
-on an execution order. A log value is normally an integer **request/command ID**, not
-the full command. Each replica obtains the payload from its local `RequestHistory` and applies
-decided commands to its own `TradeManager`. In Schedule A, three servers are learners
-and acceptors, while the leader rotates with the ballot; a majority of two acceptors
-is the quorum.
-
-## Step 0 — Provided baseline
-
-The provided skeleton already had the essential path: the client broadcast the same
-request and ID to the replicas; each server stored a `RequestRecord` in its pending
-history; a leader proposed the ID for a numbered Paxos instance; learners recorded a
-decision; and the local state machine executed the corresponding command before its
-RPC handler replied. `PaxosLog` supplied the ordering, while `RequestHistory` supplied
-the command payload and the waiting RPC handler. The original `MainLoop` handled one
-slot's consensus and execution before advancing to the next.
-
-This was an **incomplete** Paxos baseline, not the implementation below: its Phase 1
-used `PhaseOneBogusProcessor` and could proceed on one reply instead of collecting a
-proper quorum. The current code no longer uses that processor or that sequential
-`MainLoop` structure.
+# Design overview: Steps 1–2
 
 ## Step 1 — Completing Paxos
 
-The console's `setdebug` RPC changes `DebugState`: mode 1 requests a crash, 2
-freezes client/Paxos request handling until mode 3 unfreezes it, and 4 enables random
-processing delay until mode 5 disables it; mode 0 clears the modes. Freeze controls
-request-processing entry points, not every background thread. The console RPC remains
-usable to unfreeze a server. `DebugExitInterceptor` defers a pending crash to the
-call-completion callback rather than terminating inside the debug RPC handler.
+The console `setdebug` RPC controls a replica. Mode 1 crashes, 2 freezes request handling until mode 3, and 4 adds random delay until mode 5. Mode 0 clears them. Freeze blocks the request entry points, not the console, so a frozen server can still be unfrozen. A crash waits until the debug RPC has finished.
 
-Phase 1 was corrected to require promises from **distinct configured acceptors**.
-Accepted history is selected by the highest previously accepted ballot for each
-instance; if there is no such value, the leader may use its local candidate. A higher
-ballot rejection aborts the stale attempt and advances the server's ballot. Phase 2
-likewise succeeds only on a quorum of distinct accepted replies—not merely because
-RPCs have finished. The proposer then marks its local slot decided; other replicas
-can decide it from Learn notifications. Acceptor promise/accept transitions are
-synchronized with the server ballot. The Phase 1 handler serializes collection of
-accepted-entry references and its promise against Phase 2, then reads each entry's
-accepted value/ballot together; it does not freeze the entire reply as one immutable
-log snapshot. An acceptor rejects a different value at the same ballot or a
-conflicting value for an already decided slot.
-Learners validate the sender and count distinct acceptors **per ballot**, retaining
-older-ballot evidence when Learn messages arrive out of order.
-
-In Step 1, each slot still ran its own corrected Phase 1. These safety rules remain
-in the current code; Step 2 changes *when Phase 1 is run*, not the requirement to
-obtain a safe value from it.
+Phase 1 now succeeds only with a quorum of distinct acceptors.
 
 ## Step 2 — Multi-Paxos
 
@@ -96,9 +44,6 @@ the trading state twice; this is not a guarantee of full client-RPC idempotency.
 The log's internal NOOP value is `-2`; `-1` means no proposal candidate and is not
 an executable command.
 
-This section describes the implemented Multi-Paxos path, **not** Fast Paxos, causal
-balance reads, or dynamic membership/state transfer from later assignment steps.
-
 ## Component responsibilities
 
 | Component | Responsibility | Source |
@@ -115,30 +60,3 @@ balance reads, or dynamic membership/state transfer from later assignment steps.
 | Ordered executor and state machine | Execute decided slots in order and publish RPC results | [`OrderedPaxosExecutor`](../src/server/src/main/java/didatrade/server/OrderedPaxosExecutor.java), [`TradeManager`](../src/core/src/main/java/didatrade/core/TradeManager.java) |
 | Console and debug control | `newballot`/`setdebug` RPCs, freeze/slow/crash behavior | [`Console`](../src/console/src/main/java/didatrade/console/Console.java), [`DidaTradeMasterServiceImpl`](../src/server/src/main/java/didatrade/server/DidaTradeMasterServiceImpl.java), [`DebugState`](../src/server/src/main/java/didatrade/server/DebugState.java), [`DebugExitInterceptor`](../src/server/src/main/java/didatrade/server/DebugExitInterceptor.java) |
 
-## Current request flow
-
-```text
-Client broadcasts request + ID to every replica
-    -> DidaTradeMainServiceImpl -> RequestHistory.pending; RPC handlers wait
-    -> leader MainLoop: successful global Phase 1 for this ballot, then claim slots
-    -> PaxosPipeline workers / PaxosProposer: Phase 2(slot, ballot, request ID)
-    -> acceptors accept the slot value
-         +-> accepted quorum -> proposer marks its local slot decided
-         +-> Learn notifications -> learners decide on distinct-acceptor quorum
-    -> PaxosLog/PaxosInstance holds each replica's slot decisions
-    -> each replica's OrderedPaxosExecutor (in slot order)
-    -> RequestHistory[ID] -> TradeManager -> RequestRecord.setResponse()
-    -> server RPC reply -> client collector
-```
-
-The client currently waits for one reply. The server sends that reply only after **its
-own** ordered executor has applied the command, not merely when Paxos decides its ID.
-
-## Why the responsibilities are split
-
-`MainLoop` is the single slot coordinator, so local slot assignment is not spread
-across workers. `PaxosProposer` owns the ballot's prepare and each claimed Phase 2
-attempt; `PaxosPipeline` owns only bounded worker capacity. `PaxosLog` and
-`PaxosInstance` retain proposal and decision state rather than duplicating it in the
-pool. Finally, `OrderedPaxosExecutor` is each replica's sole state-machine execution
-path, so out-of-order consensus cannot reorder trades or release an RPC before execution.

@@ -1,6 +1,6 @@
 # End-to-End Request Flow
 
-This document follows one `buy` request through the current baseline implementation,
+This document follows one `buy` request through the baseline implementation,
 from the client to Paxos, state-machine execution, and the client reply. It describes
 the code as it exists today; it does not describe the later Multi-Paxos or corrected
 Phase 1 work.
