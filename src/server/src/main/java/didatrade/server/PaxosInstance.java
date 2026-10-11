@@ -91,12 +91,9 @@ public class PaxosInstance {
 
 		// One acceptor may cast at most one vote in a ballot. A duplicated Learn for the
 		// same value is harmless; a conflicting Learn from the same acceptor is ignored.
-		for (Map.Entry<Integer, LearnVotes> candidate : values.entrySet ()) {
-			if (candidate.getValue ().accepted_by.contains (server_id)) {
-				if (candidate.getKey () != value)
-					return false;
+		for (LearnVotes candidate : values.values ()) {
+			if (candidate.accepted_by.contains (server_id))
 				return false;
-			}
 		}
 
 		LearnVotes votes = values.computeIfAbsent (value, ignored -> new LearnVotes ());
