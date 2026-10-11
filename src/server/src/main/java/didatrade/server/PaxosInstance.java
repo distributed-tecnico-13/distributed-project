@@ -83,13 +83,24 @@ public class PaxosInstance {
 
 	public synchronized boolean recordLearn (
 			int ballot, int value, int server_id, int quorum) {
+		if (!this.recordVote (ballot, value, server_id, quorum))
+			return false;
+		return this.updateInstanceState (quorum);
+	}
+
+	// Returns true once this vote is stored and its value has a quorum.
+	private boolean recordVote (int ballot, int value, int server_id, int quorum) {
 		if (this.decided && value != this.command_id)
 			return false;
 		if (!this.learn_info.recordVote (ballot, value, server_id))
 			return false;
-		if (this.learn_info.acceptCount (ballot, value) < quorum)
-			return false;
+		return this.learn_info.acceptCount (ballot, value) >= quorum;
+	}
+
+	private boolean updateInstanceState (int quorum) {
 		int highest_ballot = this.learn_info.findHighestBallotWithQuorum (quorum);
+		if (highest_ballot < 0)
+			return false;
 		int chosen_value = this.learn_info.valueWithQuorum (highest_ballot, quorum);
 		if (chosen_value == CommandIdHelper.ABSENT_VALUE
 				|| (this.decided && chosen_value != this.command_id))
