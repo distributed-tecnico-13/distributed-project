@@ -14,6 +14,17 @@ public class DidaTradeMainServiceImpl extends DidaTradeMainServiceGrpc.DidaTrade
 		this.server_state = state;
 	}
 
+	private boolean submitAndWait (int reqid, DidaTradeCommand command) {
+		RequestRecord request_record = new RequestRecord (reqid, command);
+		boolean result = this.server_state.req_history.addToPending (reqid, request_record);
+		if (!result)
+			return false;
+
+		if (!FastPaxosPath.tryAcceptRequest (this.server_state, reqid))
+			this.server_state.main_loop.wakeup ();
+		return request_record.waitForResponse ();
+	}
+
 	@Override
 	public void populate (DidaTradeMain.PopulateRequest request, StreamObserver<DidaTradeMain.PopulateReply> responseObserver) {
 		// for debug purposes
@@ -32,12 +43,7 @@ public class DidaTradeMainServiceImpl extends DidaTradeMainServiceGrpc.DidaTrade
 		// for debug purposes
 		System.out.println ("Adding populate request with reqid " + reqid + " to pending");
 
-		RequestRecord request_record = new RequestRecord (reqid, command);
-		boolean result = this.server_state.req_history.addToPending (reqid, request_record);
-		if (result) {
-			this.server_state.main_loop.wakeup ();
-			result = request_record.waitForResponse ();
-		}
+		boolean result = this.submitAndWait (reqid, command);
 
 		// for debug purposes
 		System.out.println ("Result is ready for open request with reqid " + reqid);
@@ -67,12 +73,7 @@ public class DidaTradeMainServiceImpl extends DidaTradeMainServiceGrpc.DidaTrade
 
 		this.server_state.applyDebugState ();
 
-		RequestRecord request_record = new RequestRecord (reqid, command);
-		boolean result = this.server_state.req_history.addToPending (reqid, request_record);
-		if (result) {
-			this.server_state.main_loop.wakeup ();
-			result = request_record.waitForResponse ();
-		}
+		boolean result = this.submitAndWait (reqid, command);
 
 		// for debug purposes
 		System.out.println ("Result is ready for add request with reqid " + reqid);
@@ -101,12 +102,7 @@ public class DidaTradeMainServiceImpl extends DidaTradeMainServiceGrpc.DidaTrade
 		// for debug purposes
 		System.out.println ("Adding buy request with reqid " + reqid + " to pending");
 
-		RequestRecord request_record = new RequestRecord (reqid, command);
-		boolean result = this.server_state.req_history.addToPending (reqid, request_record);
-		if (result) {
-			this.server_state.main_loop.wakeup ();
-			result = request_record.waitForResponse ();
-		}
+		boolean result = this.submitAndWait (reqid, command);
 
 		// for debug purposes
 		System.out.println ("Result is ready for add request with reqid " + reqid);
@@ -136,12 +132,7 @@ public class DidaTradeMainServiceImpl extends DidaTradeMainServiceGrpc.DidaTrade
 
 		this.server_state.applyDebugState ();
 
-		RequestRecord request_record = new RequestRecord (reqid, command);
-		boolean result = this.server_state.req_history.addToPending (reqid, request_record);
-		if (result) {
-			this.server_state.main_loop.wakeup ();
-			result = request_record.waitForResponse ();
-		}
+		boolean result = this.submitAndWait (reqid, command);
 
 		// for debug purposes
 		System.out.println ("Result is ready for add request with reqid " + reqid);
@@ -170,12 +161,7 @@ public class DidaTradeMainServiceImpl extends DidaTradeMainServiceGrpc.DidaTrade
 		// for debug purposes
 		System.out.println ("Adding balance request with reqid " + reqid + " to pending");
 
-		RequestRecord request_record = new RequestRecord (reqid, command);
-		boolean result = this.server_state.req_history.addToPending (reqid, request_record);
-		if (result) {
-			this.server_state.main_loop.wakeup ();
-			result = request_record.waitForResponse ();
-		}
+		boolean result = this.submitAndWait (reqid, command);
 
 		// for debug purposes
 		System.out.println ("Result is ready for add request with reqid " + reqid);
@@ -204,12 +190,7 @@ public class DidaTradeMainServiceImpl extends DidaTradeMainServiceGrpc.DidaTrade
 
 		this.server_state.applyDebugState ();
 
-		RequestRecord request_record = new RequestRecord (reqid, command);
-		boolean result = this.server_state.req_history.addToPending (reqid, request_record);
-		if (result) {
-			this.server_state.main_loop.wakeup ();
-			result = request_record.waitForResponse ();
-		}
+		boolean result = this.submitAndWait (reqid, command);
 
 		// for debug purposes
 		System.out.println ("Result is ready for dump request with reqid " + reqid);

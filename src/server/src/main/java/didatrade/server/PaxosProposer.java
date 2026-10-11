@@ -11,22 +11,25 @@ import java.util.stream.Collectors;
 
 import didatrade.DidaTradePaxos;
 import didatrade.util.CollectorStreamObserver;
+import didatrade.util.FastRoundResponseProcessor;
 import didatrade.util.GenericResponseCollector;
 import didatrade.util.PhaseOneResponseProcessor;
 import didatrade.util.PhaseTwoResponseProcessor;
 
-/** Phase 1 once per ballot, then one Phase 2 attempt for a slot MainLoop has claimed. */
+/** Phase 1 once per ballot, classic recovery, and the transition into a Fast round. */
 final class PaxosProposer {
 	static final long RETRY_DELAY_MILLIS = 200;
 	static final long RPC_TIMEOUT_SECONDS = 5;
 
 	private final DidaTradeServerState server_state;
+	private int prepared_ballot = -1;
+	private int recovery_highest_instance = -1;
+	private int opened_fast_ballot = -1;
 
 	PaxosProposer(DidaTradeServerState state) {
 		this.server_state = state;
 	}
 
-	// Returns whether this server may still propose. A failed prepare does not open Phase 2.
 	boolean prepare (int ballot) {
 		if (!this.server_state.canProposeFor (ballot))
 			return false;
@@ -42,6 +45,10 @@ final class PaxosProposer {
 		for (int instance : phase_one.instances ())
 			this.server_state.paxos_log.adopt (instance, phase_one.commandFor (instance));
 		this.fillNoops (phase_one);
+
+		this.prepared_ballot = ballot;
+		this.recovery_highest_instance = phase_one.highestInstance ();
+		this.opened_fast_ballot = -1;
 		this.server_state.setRanPhaseOne (ballot);
 		return true;
 	}
@@ -56,6 +63,63 @@ final class PaxosProposer {
 			if (!known.contains (instance))
 				this.server_state.paxos_log.fillNoop (instance);
 		}
+	}
+
+	int recoveryLimit (int ballot) {
+		if (this.prepared_ballot != ballot || this.recovery_highest_instance < 0)
+			return 0;
+		return this.recovery_highest_instance + 1;
+	}
+
+	boolean fastRecoveryComplete (int ballot) {
+		if (this.prepared_ballot != ballot)
+			return false;
+		for (int instance = 0; instance <= this.recovery_highest_instance; instance++) {
+			PaxosInstance entry = this.server_state.paxos_log.getEntry (instance);
+			if (entry == null || !entry.isDecided () || entry.getAcceptBallot () < ballot)
+				return false;
+		}
+		return true;
+	}
+
+	boolean openFastRound (int ballot) {
+		if (!this.server_state.canProposeFor (ballot)
+				|| !this.server_state.scheduler.fastpaxos (ballot)
+				|| !this.server_state.hasRunPhaseOne (ballot)
+				|| !this.fastRecoveryComplete (ballot))
+			return false;
+		if (this.opened_fast_ballot == ballot)
+			return false;
+
+		List<Integer> acceptors = this.server_state.scheduler.acceptors (ballot);
+		DidaTradePaxos.OpenFastRequest request = DidaTradePaxos.OpenFastRequest.newBuilder ()
+				.setBallot (ballot)
+				.build ();
+		FastRoundResponseProcessor processor = new FastRoundResponseProcessor (
+				this.server_state.scheduler.quorum (ballot), acceptors);
+		ArrayList<DidaTradePaxos.OpenFastReply> responses = new ArrayList<> ();
+		GenericResponseCollector<DidaTradePaxos.OpenFastReply> collector = new GenericResponseCollector<> (
+				responses, acceptors.size (), processor);
+
+		for (int acceptor : acceptors) {
+			CollectorStreamObserver<DidaTradePaxos.OpenFastReply> observer = new CollectorStreamObserver<> (
+					collector);
+			this.server_state.async_stubs[acceptor]
+					.withDeadlineAfter (RPC_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+					.openfast (request, observer);
+		}
+		collector.waitUntilDone ();
+
+		if (processor.getAccepted ()) {
+			this.opened_fast_ballot = ballot;
+			return true;
+		}
+		if (processor.getMaxballot () > this.server_state.getCurrentBallot ()) {
+			this.server_state.setCurrentBallot (processor.getMaxballot ());
+			if (this.server_state.main_loop != null)
+				this.server_state.main_loop.wakeup ();
+		}
+		return false;
 	}
 
 	void propose (PaxosInstance entry, int ballot) {
@@ -155,6 +219,12 @@ final class PaxosProposer {
 
 		int commandFor (int instance) {
 			return this.commands.get (instance);
+		}
+
+		int highestInstance () {
+			return this.instances.length == 0
+					? -1
+					: Arrays.stream (this.instances).max ().getAsInt ();
 		}
 	}
 }

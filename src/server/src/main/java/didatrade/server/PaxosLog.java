@@ -43,7 +43,7 @@ public class PaxosLog {
 		return entry;
 	}
 
-	// MainLoop is the sole allocator. Keep the request/slot choice with the log.
+	// Classic/Multi-Paxos allocation remains centralized in MainLoop.
 	public synchronized PaxosInstance assignPendingRequest (int position, RequestHistory history) {
 		PaxosInstance entry = this.log.get (position);
 		if (entry != null && (entry.isDecided ()
@@ -66,6 +66,29 @@ public class PaxosLog {
 			entry = this.testAndSetEntry (position);
 		entry.setProposedRequestId (pending.getId ());
 		return entry;
+	}
+
+	public synchronized PaxosInstance assignFastRequest (int request_id) {
+		for (PaxosInstance candidate : this.log.values ()) {
+			if (candidate.getUnexecutedRequestId () == request_id)
+				return candidate;
+		}
+
+		int position = 0;
+		while (true) {
+			PaxosInstance entry = this.log.get (position);
+			if (entry == null) {
+				entry = this.testAndSetEntry (position);
+				entry.setProposedRequestId (request_id);
+				return entry;
+			}
+			if (!entry.isDecided () && !entry.isAccepted ()
+					&& CommandIdHelper.isAbsent (entry.getProposedRequestId ())) {
+				entry.setProposedRequestId (request_id);
+				return entry;
+			}
+			position++;
+		}
 	}
 
 	public synchronized boolean adopt (int instance, int request_id) {

@@ -1,19 +1,11 @@
 
 package didatrade.server;
 
-import java.util.*;
-
-import didatrade.DidaTradeMain; // ignore-unused-import
 import didatrade.DidaTradePaxos;
 import didatrade.DidaTradePaxosServiceGrpc;
+import java.util.Arrays;
 
-import didatrade.util.GenericResponseCollector;
-import didatrade.util.CollectorStreamObserver;
-
-import io.grpc.ManagedChannel; // ignore-unused-import
-import io.grpc.ManagedChannelBuilder; // ignore-unused-import
 import io.grpc.stub.StreamObserver;
-import io.grpc.Context;
 
 public class DidaTradePaxosServiceImpl extends DidaTradePaxosServiceGrpc.DidaTradePaxosServiceImplBase {
 	DidaTradeServerState server_state;
@@ -90,34 +82,30 @@ public class DidaTradePaxosServiceImpl extends DidaTradePaxosServiceGrpc.DidaTra
 		responseObserver.onCompleted ();
 
 		// Notify learners
-		if (phase_two.accepted) {
+		if (phase_two.accepted)
+			PaxosLearnerNotifier.notifyAccepted (this.server_state, instance, ballot, value);
 
-			Context ctx = Context.current ().fork ();
-			ctx.run ( () -> {
-				List<Integer> learners = this.server_state.scheduler.learners (ballot);
-				int n_targets = learners.size ();
+	}
 
-				DidaTradePaxos.LearnRequest.Builder learn_request_builder = DidaTradePaxos.LearnRequest.newBuilder ();
-				learn_request_builder.setInstance (instance);
-				learn_request_builder.setValue (value);
-				learn_request_builder.setBallot (ballot);
-				learn_request_builder.setServerid (this.server_state.my_id);
+	@Override
+	public void openfast (DidaTradePaxos.OpenFastRequest request, StreamObserver<DidaTradePaxos.OpenFastReply> responseObserver) {
+		int ballot = request.getBallot ();
 
-				DidaTradePaxos.LearnRequest learn_request = learn_request_builder.build ();
+		this.server_state.applyDebugState ();
 
-				// System.out.println("Sending learn request: \n" + learn_request);
+		boolean accepted = this.server_state.openFastRound (ballot);
+		DidaTradePaxos.OpenFastReply response = DidaTradePaxos.OpenFastReply.newBuilder ()
+				.setServerid (this.server_state.my_id)
+				.setBallot (ballot)
+				.setAccepted (accepted)
+				.setMaxballot (this.server_state.getCurrentBallot ())
+				.build ();
 
-				System.out.println ("Paxos acceptor: going to notify learners for entry " + instance + " with timestamp " + ballot + " request = " + learn_request);
-				ArrayList<DidaTradePaxos.LearnReply> learn_responses = new ArrayList<DidaTradePaxos.LearnReply> ();
-				GenericResponseCollector<DidaTradePaxos.LearnReply> learn_collector = new GenericResponseCollector<DidaTradePaxos.LearnReply> (learn_responses, n_targets);;
-				for (int i = 0; i < n_targets; i++) {
-					CollectorStreamObserver<DidaTradePaxos.LearnReply> learn_observer = new CollectorStreamObserver<DidaTradePaxos.LearnReply> (learn_collector);
-					this.server_state.async_stubs[learners.get (i)].learn (learn_request, learn_observer);
-				}
-				// System.out.println("Learn request completed for instance = " + instance);
-			});
-		}
+		responseObserver.onNext (response);
+		responseObserver.onCompleted ();
 
+		if (accepted)
+			FastPaxosPath.acceptPendingRequests (this.server_state);
 	}
 
 	@Override
@@ -141,6 +129,11 @@ public class DidaTradePaxosServiceImpl extends DidaTradePaxosServiceGrpc.DidaTra
 				System.out.println ("Paxos learner: waking up the main loop");
 				this.server_state.updateCompletedBallot (ballot);
 				this.server_state.main_loop.wakeup ();
+			} else if (this.server_state.scheduler.fastpaxos (ballot)
+					&& entry.cannotReachQuorum (ballot, this.server_state.scheduler.quorum (ballot),
+							this.server_state.scheduler.acceptors (ballot).size ())) {
+				if (this.server_state.advanceFromFailedFastBallot (ballot))
+					this.server_state.main_loop.wakeup ();
 			}
 		}
 

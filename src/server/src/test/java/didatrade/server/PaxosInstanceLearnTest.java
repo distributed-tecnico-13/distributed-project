@@ -130,4 +130,66 @@ class PaxosInstanceLearnTest {
 		assertEquals (100, entry.getCommandId ());
 		assertEquals (7, entry.getAcceptBallot ());
 	}
+	@Test
+	void fastBallotTracksCompetingValuesIndependently () {
+		PaxosInstance entry = new PaxosInstance (0);
+
+		assertFalse (entry.recordLearn (5, 100, 0, 2));
+		assertFalse (entry.recordLearn (5, 200, 1, 2));
+		assertEquals (1, entry.getAcceptCount (5, 100));
+		assertEquals (1, entry.getAcceptCount (5, 200));
+		assertFalse (entry.isDecided ());
+
+		assertTrue (entry.recordLearn (5, 100, 2, 2));
+		assertEquals (2, entry.getAcceptCount (5, 100));
+		assertEquals (100, entry.getCommandId ());
+	}
+
+	@Test
+	void fastBallotCanDetectThatNoValueCanStillReachQuorum () {
+		PaxosInstance entry = new PaxosInstance (0);
+
+		assertFalse (entry.recordLearn (5, 100, 0, 2));
+		assertFalse (entry.recordLearn (5, 200, 1, 2));
+		assertFalse (entry.cannotReachQuorum (5, 2, 3));
+
+		assertFalse (entry.recordLearn (5, 300, 2, 2));
+		assertTrue (entry.cannotReachQuorum (5, 2, 3));
+		assertFalse (entry.isDecided ());
+	}
+
+	@Test
+	void conflictingDuplicateFromSameAcceptorIsIgnored () {
+		PaxosInstance entry = new PaxosInstance (0);
+
+		assertFalse (entry.recordLearn (5, 100, 0, 2));
+		assertFalse (entry.recordLearn (5, 200, 0, 2));
+
+		assertEquals (1, entry.getAcceptCount (5, 100));
+		assertEquals (0, entry.getAcceptCount (5, 200));
+		assertFalse (entry.isDecided ());
+	}
+
+	@Test
+	void conflictingDuplicateCannotPreventLaterMatchingQuorum () {
+		PaxosInstance entry = new PaxosInstance (0);
+
+		assertFalse (entry.recordLearn (5, 100, 0, 2));
+		assertFalse (entry.recordLearn (5, 200, 0, 2));
+		assertTrue (entry.recordLearn (5, 100, 2, 2));
+
+		assertTrue (entry.isDecided ());
+		assertEquals (100, entry.getCommandId ());
+	}
+
+	@Test
+	void twoWaySplitIsStillRecoverableWhileThirdAcceptorIsMissing () {
+		PaxosInstance entry = new PaxosInstance (0);
+
+		assertFalse (entry.recordLearn (5, 100, 0, 2));
+		assertFalse (entry.recordLearn (5, 200, 1, 2));
+
+		assertFalse (entry.cannotReachQuorum (5, 2, 3));
+	}
+
 }

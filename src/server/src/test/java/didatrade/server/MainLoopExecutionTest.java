@@ -31,6 +31,7 @@ class MainLoopExecutionTest {
 		ExecutorService rpc_waiter = Executors.newSingleThreadExecutor ();
 		try {
 			loop_thread.start ();
+			state.main_loop.wakeup ();
 			assertTrue (history.missing_payload.await (2, TimeUnit.SECONDS));
 			RequestRecord record = new RequestRecord (101,
 					new DidaTradeCommand (DidaTradeAction.ADDUSER, 101, 10, 10));

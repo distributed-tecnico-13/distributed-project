@@ -1,8 +1,10 @@
 package didatrade.util;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
@@ -15,31 +17,26 @@ public class PhaseOneResponseProcessor
 
 	private final ConfigurationScheduler scheduler;
 	private final int high_ballot;
-
 	private final int quorum;
 	private final Set<Integer> acceptors;
 	private final Set<Integer> responders;
 
 	private boolean accepted;
 	private int response_count;
+	private final Map<Integer, List<AcceptedObservation>> observations_per_instance;
 	private final Map<Integer, InstanceResponse> responses_per_instance;
-
 	private int maxballot;
 
 	public PhaseOneResponseProcessor(ConfigurationScheduler s, int h) {
 		this.scheduler = s;
 		this.high_ballot = h;
-
 		this.quorum = this.scheduler.quorum (this.high_ballot);
-
-		this.acceptors = new HashSet<> (
-				this.scheduler.acceptors (this.high_ballot));
+		this.acceptors = new HashSet<> (this.scheduler.acceptors (this.high_ballot));
 		this.responders = new HashSet<> ();
-
 		this.accepted = false;
 		this.response_count = 0;
-		this.responses_per_instance = new HashMap<Integer, InstanceResponse> ();
-
+		this.observations_per_instance = new HashMap<> ();
+		this.responses_per_instance = new HashMap<> ();
 		this.maxballot = -1;
 	}
 
@@ -72,45 +69,97 @@ public class PhaseOneResponseProcessor
 		return response.getBallot ();
 	}
 
+	@Override
 	public synchronized boolean onNext (
 			ArrayList<DidaTradePaxos.PhaseOneReply> all_responses,
 			DidaTradePaxos.PhaseOneReply last_response) {
-
 		int server_id = last_response.getServerid ();
-
 		if (!this.acceptors.contains (server_id))
 			return false;
-
 		if (!this.responders.add (server_id))
 			return false;
 
+		this.maxballot = Math.max (this.maxballot, last_response.getMaxballot ());
 		if (!last_response.getAccepted ()) {
 			this.accepted = false;
-
-			if (last_response.getMaxballot () > this.maxballot)
-				this.maxballot = last_response.getMaxballot ();
-
 			return true;
 		}
 
 		for (DidaTradePaxos.PhaseOneResponseLogObject response : last_response.getResponseLogObjectsList ()) {
-			InstanceResponse instance_response = this.responses_per_instance.get (response.getInstance ());
-			if (instance_response == null) {
-				instance_response = new InstanceResponse (response.getValballot (), response.getValue ());
-				this.responses_per_instance.put (response.getInstance (), instance_response);
-			} else if (instance_response.getBallot () < response.getValballot ()) {
-				instance_response.setBallot (response.getValballot ());
-				instance_response.setValue (response.getValue ());
-			}
+			this.observations_per_instance
+					.computeIfAbsent (response.getInstance (), ignored -> new ArrayList<> ())
+					.add (new AcceptedObservation (
+							server_id, response.getValballot (), response.getValue ()));
 		}
 
 		this.response_count++;
+		if (this.response_count < this.quorum)
+			return false;
 
-		if (this.response_count >= this.quorum) {
-			this.accepted = true;
-			return true;
+		if (!this.resolveInstances ())
+			return false;
+
+		this.accepted = true;
+		return true;
+	}
+
+	private boolean resolveInstances () {
+		Map<Integer, InstanceResponse> resolved = new HashMap<> ();
+		for (Map.Entry<Integer, List<AcceptedObservation>> instance : this.observations_per_instance.entrySet ()) {
+			InstanceResponse resolution = this.resolveInstance (instance.getValue ());
+			if (resolution == null)
+				return false;
+			resolved.put (instance.getKey (), resolution);
+		}
+		this.responses_per_instance.clear ();
+		this.responses_per_instance.putAll (resolved);
+		return true;
+	}
+
+	private InstanceResponse resolveInstance (List<AcceptedObservation> observations) {
+		int highest_ballot = observations.stream ()
+				.mapToInt (AcceptedObservation::ballot)
+				.max ()
+				.orElse (-1);
+		if (highest_ballot < 0)
+			return null;
+
+		Map<Integer, Set<Integer>> voters_per_value = new HashMap<> ();
+		for (AcceptedObservation observation : observations) {
+			if (observation.ballot () != highest_ballot)
+				continue;
+			voters_per_value
+					.computeIfAbsent (observation.value (), ignored -> new HashSet<> ())
+					.add (observation.server_id ());
 		}
 
-		return false;
+		if (!this.scheduler.fastpaxos (highest_ballot)) {
+			if (voters_per_value.size () != 1)
+				return null;
+			int value = voters_per_value.keySet ().iterator ().next ();
+			return new InstanceResponse (highest_ballot, value);
+		}
+
+		int missing_acceptors = Math.max (0, this.acceptors.size () - this.responders.size ());
+		List<Integer> possible_chosen_values = voters_per_value.entrySet ().stream ()
+				.filter (entry -> entry.getValue ().size () + missing_acceptors >= this.quorum)
+				.map (Map.Entry::getKey)
+				.sorted ()
+				.toList ();
+
+		if (possible_chosen_values.size () > 1)
+			return null;
+		if (possible_chosen_values.size () == 1)
+			return new InstanceResponse (highest_ballot, possible_chosen_values.get (0));
+
+		// No value can still have reached a quorum in this Fast round. Recovery may
+		// therefore choose any value. Pick the smallest reported command deterministically.
+		int value = voters_per_value.keySet ().stream ()
+				.min (Comparator.naturalOrder ())
+				.orElse (-1);
+		return new InstanceResponse (highest_ballot, value);
+	}
+
+	private static record AcceptedObservation(int server_id, int ballot, int value) {
 	}
 }

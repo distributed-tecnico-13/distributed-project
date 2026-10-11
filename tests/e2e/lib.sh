@@ -6,6 +6,7 @@ E2E_RUN_ID="${E2E_RUN_ID:-$(date +%Y%m%d-%H%M%S)-$$}"
 E2E_LOG_DIR="${E2E_LOG_DIR:-$REPO_ROOT/logs/e2e/$E2E_RUN_ID}"
 # Filled in by start_cluster. Stays below the ephemeral range unless overridden.
 BASE_PORT="${DAD_E2E_BASE_PORT:-}"
+E2E_SCHEDULE="${DAD_E2E_SCHEDULE:-A}"
 SERVER_PIDS=()
 
 fail() {
@@ -136,9 +137,9 @@ start_cluster() {
             cd "$REPO_ROOT/src/server"
             # Line-buffer Maven so a startup failure reaches the log before we kill it.
             if command -v stdbuf >/dev/null 2>&1; then
-                exec stdbuf -oL -eL mvn -q exec:java -Dexec.args="$BASE_PORT $id A"
+                exec stdbuf -oL -eL mvn -q exec:java -Dexec.args="$BASE_PORT $id $E2E_SCHEDULE"
             else
-                exec mvn -q exec:java -Dexec.args="$BASE_PORT $id A"
+                exec mvn -q exec:java -Dexec.args="$BASE_PORT $id $E2E_SCHEDULE"
             fi
         ) >"$E2E_LOG_DIR/server-$id.log" 2>&1 &
         SERVER_PIDS[$id]=$!
@@ -173,7 +174,7 @@ run_app() {
     local output="$3"
     printf '%b' "$commands" | (
         cd "$REPO_ROOT/src/app"
-        timeout 45s mvn -q exec:java -Dexec.args="$client_id 127.0.0.1 $BASE_PORT A"
+        timeout 45s mvn -q exec:java -Dexec.args="$client_id 127.0.0.1 $BASE_PORT $E2E_SCHEDULE"
     ) >"$output" 2>&1
 }
 
@@ -182,7 +183,7 @@ run_console() {
     local output="$2"
     printf '%b' "$commands" | (
         cd "$REPO_ROOT/src/console"
-        timeout 45s mvn -q exec:java -Dexec.args="127.0.0.1 $BASE_PORT A"
+        timeout 45s mvn -q exec:java -Dexec.args="127.0.0.1 $BASE_PORT $E2E_SCHEDULE"
     ) >"$output" 2>&1
 }
 
@@ -200,7 +201,7 @@ run_ballot_console() {
     (
         cd "$REPO_ROOT/src/console"
         timeout 45s mvn -q exec:java \
-            -Dexec.args="127.0.0.1 $BASE_PORT A" <"$fifo"
+            -Dexec.args="127.0.0.1 $BASE_PORT $E2E_SCHEDULE" <"$fifo"
     ) >"$output" 2>&1 &
 
     local console_pid=$!

@@ -85,8 +85,10 @@ public final class DidaTradeServerState {
 	}
 
 	public synchronized void setCurrentBallot (int ballot) {
-		if (ballot > this.current_ballot)
+		if (ballot > this.current_ballot) {
 			this.current_ballot = ballot;
+			this.fastpaxos_on = false;
+		}
 	}
 
 	public synchronized boolean canProposeFor (int ballot) {
@@ -108,15 +110,21 @@ public final class DidaTradeServerState {
 	public synchronized PaxosInstance.PhaseOneState processPhaseOne (
 			PaxosInstance entry, int ballot) {
 		boolean accepted = ballot >= this.current_ballot;
-		if (accepted)
+		if (accepted) {
+			if (ballot > this.current_ballot)
+				this.fastpaxos_on = false;
 			this.current_ballot = ballot;
+		}
 		return entry.phaseOneState (accepted, ballot, this.current_ballot);
 	}
 
 	public synchronized PhaseOneState processPhaseOne (int ballot) {
 		boolean accepted = ballot >= this.current_ballot;
-		if (accepted)
+		if (accepted) {
+			if (ballot > this.current_ballot)
+				this.fastpaxos_on = false;
 			this.current_ballot = ballot;
+		}
 		return new PhaseOneState (accepted, this.current_ballot);
 	}
 
@@ -124,10 +132,47 @@ public final class DidaTradeServerState {
 			PaxosInstance entry, int ballot, int value) {
 		boolean accepted = false;
 		if (ballot >= this.current_ballot) {
+			if (ballot > this.current_ballot)
+				this.fastpaxos_on = false;
 			this.current_ballot = ballot;
 			accepted = entry.accept (ballot, value);
 		}
 		return new PhaseTwoState (accepted, this.current_ballot);
+	}
+
+	public synchronized boolean isFastRoundOpen (int ballot) {
+		return this.fastpaxos_on && ballot == this.current_ballot
+				&& this.scheduler != null && this.scheduler.fastpaxos (ballot);
+	}
+
+	public synchronized boolean openFastRound (int ballot) {
+		if (this.scheduler == null || ballot != this.current_ballot
+				|| !this.scheduler.fastpaxos (ballot)
+				|| !this.scheduler.isacceptor (this.my_id, ballot))
+			return false;
+		this.fastpaxos_on = true;
+		return true;
+	}
+
+	public synchronized FastVoteState processFastVote (int request_id) {
+		int ballot = this.current_ballot;
+		if (!this.isFastRoundOpen (ballot)
+				|| !this.scheduler.isacceptor (this.my_id, ballot))
+			return new FastVoteState (false, ballot, -1);
+
+		PaxosInstance entry = this.paxos_log.assignFastRequest (request_id);
+		boolean accepted = entry.accept (ballot, request_id);
+		return new FastVoteState (accepted, ballot, entry.getInstanceNb ());
+	}
+
+	public synchronized boolean advanceFromFailedFastBallot (int ballot) {
+		if (this.scheduler == null || ballot != this.current_ballot
+				|| !this.scheduler.fastpaxos (ballot))
+			return false;
+		this.current_ballot = ballot + 1;
+		this.fastpaxos_on = false;
+		this.notifyAll ();
+		return true;
 	}
 
 	public synchronized int getCompletedBallot () {
@@ -195,6 +240,18 @@ public final class DidaTradeServerState {
 
 	public void setDebugMode (int mode) {
 		this.debug_state.setDebugMode (mode);
+	}
+
+	public static final class FastVoteState {
+		final boolean accepted;
+		final int ballot;
+		final int instance;
+
+		FastVoteState(boolean accepted, int ballot, int instance) {
+			this.accepted = accepted;
+			this.ballot = ballot;
+			this.instance = instance;
+		}
 	}
 
 	public static final class PhaseOneState {

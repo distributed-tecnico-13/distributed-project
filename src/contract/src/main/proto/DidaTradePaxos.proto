@@ -36,6 +36,17 @@ message PhaseTwoReply {
   int32 maxballot       = 5;
 }
 
+message OpenFastRequest {
+  int32 ballot = 1;
+}
+
+message OpenFastReply {
+  int32 serverid  = 1;
+  int32 ballot    = 2;
+  bool  accepted  = 3;
+  int32 maxballot = 4;
+}
+
 message LearnRequest {
   int32 instance   = 1;
   int32 ballot     = 2;
@@ -51,6 +62,7 @@ message LearnReply {
 service DidaTradePaxosService {
   rpc phaseone (PhaseOneRequest) returns (PhaseOneReply);
   rpc phasetwo (PhaseTwoRequest) returns (PhaseTwoReply);
+  rpc openfast (OpenFastRequest) returns (OpenFastReply);
   rpc learn    (LearnRequest)    returns (LearnReply);
 }
 

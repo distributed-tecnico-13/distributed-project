@@ -12,7 +12,7 @@ public class PaxosInstance {
 	private int write_ballot;
 	private int accepted_value;
 	private int accept_ballot;
-	private final Map<Integer, LearnVotes> learn_votes = new HashMap<> ();
+	private final Map<Integer, Map<Integer, LearnVotes>> learn_votes = new HashMap<> ();
 	private boolean decided;
 	private boolean value_is_locked;
 	private boolean executed;
@@ -85,19 +85,36 @@ public class PaxosInstance {
 			int ballot, int value, int server_id, int quorum) {
 		if (this.decided && value != this.command_id)
 			return false;
-		LearnVotes votes = this.learn_votes.get (ballot);
-		if (votes == null) {
-			votes = new LearnVotes (value);
-			this.learn_votes.put (ballot, votes);
+
+		Map<Integer, LearnVotes> values = this.learn_votes.computeIfAbsent (
+				ballot, ignored -> new HashMap<> ());
+
+		// One acceptor may cast at most one vote in a ballot. A duplicated Learn for the
+		// same value is harmless; a conflicting Learn from the same acceptor is ignored.
+		for (Map.Entry<Integer, LearnVotes> candidate : values.entrySet ()) {
+			if (candidate.getValue ().accepted_by.contains (server_id)) {
+				if (candidate.getKey () != value)
+					return false;
+				return false;
+			}
 		}
-		if (votes.value != value)
-			return false;
+
+		LearnVotes votes = values.computeIfAbsent (value, ignored -> new LearnVotes ());
 		votes.accepted_by.add (server_id);
 		if (votes.accepted_by.size () < quorum)
 			return false;
+
 		int highest_ballot = findHighestBallotWithQuorum (quorum);
+		if (highest_ballot < 0)
+			return false;
+		int chosen_value = valueWithQuorum (highest_ballot, quorum);
+		if (chosen_value == CommandIdHelper.ABSENT_VALUE)
+			return false;
+		if (this.decided && chosen_value != this.command_id)
+			return false;
+
 		boolean advanced = !this.decided || highest_ballot > this.accept_ballot;
-		this.command_id = votes.value;
+		this.command_id = chosen_value;
 		this.accept_ballot = highest_ballot;
 		this.decided = true;
 		return advanced;
@@ -106,15 +123,60 @@ public class PaxosInstance {
 	public synchronized int findHighestBallotWithQuorum (int quorum) {
 		int highest_ballot = -1;
 		for (int ballot : this.learn_votes.keySet ()) {
-			if (getAcceptCount (ballot) >= quorum && ballot > highest_ballot)
+			if (this.maxAcceptCount (ballot) >= quorum && ballot > highest_ballot)
 				highest_ballot = ballot;
 		}
 		return highest_ballot;
 	}
 
 	public synchronized int getAcceptCount (int ballot) {
-		LearnVotes votes = this.learn_votes.get (ballot);
+		return this.maxAcceptCount (ballot);
+	}
+
+	public synchronized int getAcceptCount (int ballot, int value) {
+		Map<Integer, LearnVotes> values = this.learn_votes.get (ballot);
+		if (values == null)
+			return 0;
+		LearnVotes votes = values.get (value);
 		return votes == null ? 0 : votes.accepted_by.size ();
+	}
+
+	public synchronized boolean cannotReachQuorum (
+			int ballot, int quorum, int n_acceptors) {
+		Map<Integer, LearnVotes> values = this.learn_votes.get (ballot);
+		if (values == null || values.isEmpty ())
+			return false;
+
+		Set<Integer> responders = new HashSet<> ();
+		int highest_count = 0;
+		for (LearnVotes votes : values.values ()) {
+			responders.addAll (votes.accepted_by);
+			highest_count = Math.max (highest_count, votes.accepted_by.size ());
+		}
+
+		int remaining = Math.max (0, n_acceptors - responders.size ());
+		return highest_count + remaining < quorum;
+	}
+
+	private int maxAcceptCount (int ballot) {
+		Map<Integer, LearnVotes> values = this.learn_votes.get (ballot);
+		if (values == null)
+			return 0;
+		int max = 0;
+		for (LearnVotes votes : values.values ())
+			max = Math.max (max, votes.accepted_by.size ());
+		return max;
+	}
+
+	private int valueWithQuorum (int ballot, int quorum) {
+		Map<Integer, LearnVotes> values = this.learn_votes.get (ballot);
+		if (values == null)
+			return CommandIdHelper.ABSENT_VALUE;
+		for (Map.Entry<Integer, LearnVotes> candidate : values.entrySet ()) {
+			if (candidate.getValue ().accepted_by.size () >= quorum)
+				return candidate.getKey ();
+		}
+		return CommandIdHelper.ABSENT_VALUE;
 	}
 
 	public synchronized int getProposedRequestId () {
@@ -204,12 +266,7 @@ public class PaxosInstance {
 	}
 
 	private static final class LearnVotes {
-		private final int value;
 		private final Set<Integer> accepted_by = new HashSet<> ();
-
-		private LearnVotes(int value) {
-			this.value = value;
-		}
 	}
 
 	private static final class LocalProposal {

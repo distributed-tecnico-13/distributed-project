@@ -4,6 +4,7 @@ package didatrade.server;
 import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.Hashtable;
+import java.util.List;
 import java.util.Set;
 
 public class RequestHistory {
@@ -32,6 +33,10 @@ public class RequestHistory {
 				return this.pending.get (request_id);
 		}
 		return null;
+	}
+
+	public synchronized List<Integer> pendingRequestIds () {
+		return this.pending.keySet ().stream ().sorted ().toList ();
 	}
 
 	public synchronized RequestRecord getIfProcessed (int requestid) {
