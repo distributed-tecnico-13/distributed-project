@@ -23,8 +23,8 @@ public class PhaseOneResponseProcessor
 
 	private boolean accepted;
 	private int response_count;
-	private final Map<Integer, List<AcceptedObservation>> observations_per_instance;
-	private final Map<Integer, InstanceResponse> responses_per_instance;
+	private final Map<Integer, AcceptedResponseObserver> observations_per_instance;
+	private final Map<Integer, InstanceResponse> resolved_per_instance;
 	private int maxballot;
 
 	public PhaseOneResponseProcessor(ConfigurationScheduler s, int h) {
@@ -36,7 +36,7 @@ public class PhaseOneResponseProcessor
 		this.accepted = false;
 		this.response_count = 0;
 		this.observations_per_instance = new HashMap<> ();
-		this.responses_per_instance = new HashMap<> ();
+		this.resolved_per_instance = new HashMap<> ();
 		this.maxballot = -1;
 	}
 
@@ -49,21 +49,21 @@ public class PhaseOneResponseProcessor
 	}
 
 	public synchronized int[] instances () {
-		return this.responses_per_instance.keySet ().stream ()
+		return this.resolved_per_instance.keySet ().stream ()
 				.mapToInt (Integer::intValue)
 				.sorted ()
 				.toArray ();
 	}
 
 	public synchronized int commandFor (int instance) {
-		InstanceResponse response = this.responses_per_instance.get (instance);
+		InstanceResponse response = this.resolved_per_instance.get (instance);
 		if (response == null)
 			return -1;
 		return response.getValue ();
 	}
 
 	public synchronized int ballotFor (int instance) {
-		InstanceResponse response = this.responses_per_instance.get (instance);
+		InstanceResponse response = this.resolved_per_instance.get (instance);
 		if (response == null)
 			return -1;
 		return response.getBallot ();
@@ -86,10 +86,14 @@ public class PhaseOneResponseProcessor
 		}
 
 		for (DidaTradePaxos.PhaseOneResponseLogObject response : last_response.getResponseLogObjectsList ()) {
-			this.observations_per_instance
-					.computeIfAbsent (response.getInstance (), ignored -> new ArrayList<> ())
-					.add (new AcceptedObservation (
-							server_id, response.getValballot (), response.getValue ()));
+			AcceptedResponseObserver current_observation = this.observations_per_instance.get (response.getInstance ());
+			if (current_observation == null) {
+				this.observations_per_instance.put (
+						response.getInstance (),
+						new AcceptedResponseObserver (response.getValballot (), response.getValue ()));
+			} else {
+				current_observation.observe (response.getValballot (), response.getValue ());
+			}
 		}
 
 		this.response_count++;
@@ -105,44 +109,28 @@ public class PhaseOneResponseProcessor
 
 	private boolean resolveInstances () {
 		Map<Integer, InstanceResponse> resolved = new HashMap<> ();
-		for (Map.Entry<Integer, List<AcceptedObservation>> instance : this.observations_per_instance.entrySet ()) {
+		for (Map.Entry<Integer, AcceptedResponseObserver> instance : this.observations_per_instance.entrySet ()) {
 			InstanceResponse resolution = this.resolveInstance (instance.getValue ());
 			if (resolution == null)
 				return false;
 			resolved.put (instance.getKey (), resolution);
 		}
-		this.responses_per_instance.clear ();
-		this.responses_per_instance.putAll (resolved);
+		this.resolved_per_instance.clear ();
+		this.resolved_per_instance.putAll (resolved);
 		return true;
 	}
 
-	private InstanceResponse resolveInstance (List<AcceptedObservation> observations) {
-		int highest_ballot = observations.stream ()
-				.mapToInt (AcceptedObservation::ballot)
-				.max ()
-				.orElse (-1);
-		if (highest_ballot < 0)
-			return null;
-
-		Map<Integer, Set<Integer>> voters_per_value = new HashMap<> ();
-		for (AcceptedObservation observation : observations) {
-			if (observation.ballot () != highest_ballot)
-				continue;
-			voters_per_value
-					.computeIfAbsent (observation.value (), ignored -> new HashSet<> ())
-					.add (observation.server_id ());
-		}
-
-		if (!this.scheduler.fastpaxos (highest_ballot)) {
-			if (voters_per_value.size () != 1)
+	private InstanceResponse resolveInstance (AcceptedResponseObserver observations) {
+		if (!this.scheduler.fastpaxos (observations.ballot)) {
+			if (observations.value_count.keySet ().size () != 1)
 				return null;
-			int value = voters_per_value.keySet ().iterator ().next ();
-			return new InstanceResponse (highest_ballot, value);
+			int value = observations.value_count.keySet ().iterator ().next ();
+			return new InstanceResponse (observations.ballot, value);
 		}
 
 		int missing_acceptors = Math.max (0, this.acceptors.size () - this.responders.size ());
-		List<Integer> possible_chosen_values = voters_per_value.entrySet ().stream ()
-				.filter (entry -> entry.getValue ().size () + missing_acceptors >= this.quorum)
+		List<Integer> possible_chosen_values = observations.value_count.entrySet ().stream ()
+				.filter (entry -> entry.getValue () + missing_acceptors >= this.quorum)
 				.map (Map.Entry::getKey)
 				.sorted ()
 				.toList ();
@@ -150,16 +138,33 @@ public class PhaseOneResponseProcessor
 		if (possible_chosen_values.size () > 1)
 			return null;
 		if (possible_chosen_values.size () == 1)
-			return new InstanceResponse (highest_ballot, possible_chosen_values.get (0));
+			return new InstanceResponse (observations.ballot, possible_chosen_values.get (0));
 
 		// No value can still have reached a quorum in this Fast round. Recovery may
 		// therefore choose any value. Pick the smallest reported command deterministically.
-		int value = voters_per_value.keySet ().stream ()
+		int value = observations.value_count.keySet ().stream ()
 				.min (Comparator.naturalOrder ())
 				.orElse (-1);
-		return new InstanceResponse (highest_ballot, value);
+		return new InstanceResponse (observations.ballot, value);
 	}
 
-	private static record AcceptedObservation(int server_id, int ballot, int value) {
+	private static final class AcceptedResponseObserver {
+		private int ballot;
+		private final Map<Integer, Integer> value_count = new HashMap<> ();
+
+		private AcceptedResponseObserver(int ballot, int value) {
+			this.ballot = ballot;
+			this.value_count.put (value, 1);
+		}
+
+		private void observe (int ballot, int value) {
+			if (ballot > this.ballot) {
+				this.ballot = ballot;
+				this.value_count.clear ();
+				this.value_count.put (value, 1);
+			} else if (ballot == this.ballot) {
+				this.value_count.merge (value, 1, Integer::sum);
+			}
+		}
 	}
 }
