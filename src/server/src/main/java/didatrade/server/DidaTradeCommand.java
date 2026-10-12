@@ -5,6 +5,7 @@ public class DidaTradeCommand {
 	private int user_id;
 	private int quantity;
 	private int stock;
+	private int instance;
 
 	public DidaTradeCommand(DidaTradeAction command_type) {
 		this.action = command_type;
@@ -54,5 +55,13 @@ public class DidaTradeCommand {
 
 	public int getStock () {
 		return this.stock;
+	}
+
+	public int getInstance () {
+		return this.instance;
+	}
+
+	public void setInstance (int instance) {
+		this.instance = instance;
 	}
 }

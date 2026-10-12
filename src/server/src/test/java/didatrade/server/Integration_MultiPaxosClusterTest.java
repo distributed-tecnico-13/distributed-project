@@ -1,6 +1,7 @@
 package didatrade.server;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.io.IOException;
@@ -214,6 +215,43 @@ class Integration_MultiPaxosClusterTest {
 		}
 	}
 
+	@Test
+	@Timeout(40)
+	void laggingReplicaHoldsBalanceUntilItExecutesObservedInstance () throws Exception {
+		try (Cluster cluster = new Cluster ()) {
+			final int request_id = 60_001;
+			final int user_id = 600;
+			cluster.dropReplica (2);
+
+			Future<DidaTradeMain.AddUserReply> write = cluster.addUserReplyFrom (
+					0, request_id, user_id, 650, 12);
+			Future<Boolean> quorum_copy = cluster.addUserTo (1, request_id, user_id, 650, 12);
+			DidaTradeMain.AddUserReply write_reply = write.get (10, TimeUnit.SECONDS);
+			assertTrue (write_reply.getResult ());
+			assertTrue (quorum_copy.get (10, TimeUnit.SECONDS));
+			int observed = write_reply.getInstance ();
+
+			// Replica 2 missed the write. Answering now would return -1 for a user the
+			// client has already seen being added.
+			cluster.restoreReplica (2);
+			Future<DidaTradeMain.BalanceReply> balance = cluster.balanceFrom (2, user_id, observed);
+			Thread.sleep (300);
+			assertFalse (balance.isDone ());
+
+			// Same catch-up as replicaThatMissedPhaseTwoCatchesUpWhenLeadershipChanges.
+			Future<Boolean> late_copy = cluster.addUserTo (2, request_id, user_id, 650, 12);
+			cluster.states[1].setCurrentBallot (1);
+			cluster.reconnectPeers ();
+			cluster.states[1].main_loop.wakeup ();
+
+			DidaTradeMain.BalanceReply balance_reply = balance.get (15, TimeUnit.SECONDS);
+			assertTrue (balance_reply.getResult ());
+			assertEquals (650, balance_reply.getBalance ());
+			assertTrue (balance_reply.getInstance () >= observed);
+			assertTrue (late_copy.get (15, TimeUnit.SECONDS));
+		}
+	}
+
 	private static boolean usersPresent (DidaTradeServerState state, int first_user, int last_user) {
 		for (int user_id = first_user; user_id < last_user; user_id++) {
 			if (state.trade_manager.balance (user_id) == -1)
@@ -336,6 +374,30 @@ class Integration_MultiPaxosClusterTest {
 					.withDeadlineAfter (45, TimeUnit.SECONDS)
 					.adduser (request)
 					.getResult ());
+		}
+
+		Future<DidaTradeMain.AddUserReply> addUserReplyFrom (
+				int replica, int request_id, int user_id, int cash, int stock) {
+			DidaTradeMain.AddUserRequest request = DidaTradeMain.AddUserRequest.newBuilder ()
+					.setReqid (request_id)
+					.setUserid (user_id)
+					.setCash (cash)
+					.setStock (stock)
+					.build ();
+			return this.workers.submit ( () -> this.clients[replica]
+					.withDeadlineAfter (45, TimeUnit.SECONDS)
+					.adduser (request));
+		}
+
+		Future<DidaTradeMain.BalanceReply> balanceFrom (int replica, int user_id, int min_instance) {
+			DidaTradeMain.BalanceRequest request = DidaTradeMain.BalanceRequest.newBuilder ()
+					.setReqid (user_id)
+					.setUserid (user_id)
+					.setMininstance (min_instance)
+					.build ();
+			return this.workers.submit ( () -> this.clients[replica]
+					.withDeadlineAfter (30, TimeUnit.SECONDS)
+					.balance (request));
 		}
 
 		List<Future<Boolean>> broadcastAddUserAsync (

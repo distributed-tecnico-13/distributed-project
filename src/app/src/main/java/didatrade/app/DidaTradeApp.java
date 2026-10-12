@@ -35,6 +35,7 @@ public class DidaTradeApp {
 	private DidaTradeMainServiceGrpc.DidaTradeMainServiceStub[] async_stubs;
 	private char schedule;
 	private ConfigurationScheduler scheduler;
+	private int max_known_instance;
 
 	public DidaTradeApp() {
 		this.interactive_mode = true;
@@ -53,6 +54,11 @@ public class DidaTradeApp {
 		this.targets = new String[n_servers];
 		this.schedule = 'A';
 		this.scheduler = null;
+		this.max_known_instance = -1;
+	}
+
+	private void setMaxKnownInstance (int instance) {
+		this.max_known_instance = Math.max (this.max_known_instance, instance);
 	}
 
 	private boolean populate (int quantity) {
@@ -76,6 +82,7 @@ public class DidaTradeApp {
 			Iterator<DidaTradeMain.PopulateReply> populate_iterator = populate_responses.iterator ();
 			DidaTradeMain.PopulateReply populate_reply = populate_iterator.next ();
 			result = populate_reply.getResult ();
+			setMaxKnownInstance (populate_reply.getInstance ());
 			if (result) {
 				System.out.println ("User DB has been populated with " + quantity + "users.\n");
 			} else {
@@ -110,6 +117,7 @@ public class DidaTradeApp {
 			Iterator<DidaTradeMain.AddUserReply> adduser_iterator = adduser_responses.iterator ();
 			DidaTradeMain.AddUserReply adduser_reply = adduser_iterator.next ();
 			result = adduser_reply.getResult ();
+			setMaxKnownInstance (adduser_reply.getInstance ());
 			if (result) {
 				System.out.println ("User " + uid + " added with cash " + cash + "and stock" + stock + "% of stock\n");
 			} else {
@@ -143,6 +151,7 @@ public class DidaTradeApp {
 			Iterator<DidaTradeMain.SellReply> sell_iterator = sell_responses.iterator ();
 			DidaTradeMain.SellReply sell_reply = sell_iterator.next ();
 			result = sell_reply.getResult ();
+			setMaxKnownInstance (sell_reply.getInstance ());
 			if (result) {
 				System.out.println ("User " + uid + " did sell " + quantity + "% of stock\n");
 			} else {
@@ -176,6 +185,7 @@ public class DidaTradeApp {
 			Iterator<DidaTradeMain.BuyReply> buy_iterator = buy_responses.iterator ();
 			DidaTradeMain.BuyReply buy_reply = buy_iterator.next ();
 			result = buy_reply.getResult ();
+			setMaxKnownInstance (buy_reply.getInstance ());
 			if (result) {
 				System.out.println ("User " + uid + " did spend " + quantity + "% of balance\n");
 			} else {
@@ -196,6 +206,7 @@ public class DidaTradeApp {
 		DidaTradeMain.BalanceRequest.Builder balance_request = DidaTradeMain.BalanceRequest.newBuilder ();
 		balance_request.setReqid (reqid);
 		balance_request.setUserid (uid);
+		balance_request.setMininstance (this.max_known_instance);
 
 		ArrayList<DidaTradeMain.BalanceReply> balance_responses = new ArrayList<DidaTradeMain.BalanceReply> ();
 		GenericResponseCollector<DidaTradeMain.BalanceReply> balance_collector = new GenericResponseCollector<DidaTradeMain.BalanceReply> (balance_responses, this.n_servers);
@@ -209,6 +220,7 @@ public class DidaTradeApp {
 			Iterator<DidaTradeMain.BalanceReply> balance_iterator = balance_responses.iterator ();
 			DidaTradeMain.BalanceReply balance_reply = balance_iterator.next ();
 			result = balance_reply.getResult ();
+			setMaxKnownInstance (balance_reply.getInstance ());
 			if (result) {
 				balance = balance_reply.getBalance ();
 				System.out.println ("User " + uid + " balance is " + balance + "\n");
@@ -244,6 +256,7 @@ public class DidaTradeApp {
 			Iterator<DidaTradeMain.DumpReply> dump_iterator = dump_responses.iterator ();
 			DidaTradeMain.DumpReply dump_reply = dump_iterator.next ();
 			result = dump_reply.getResult ();
+			setMaxKnownInstance (dump_reply.getInstance ());
 			if (result) {
 				System.out.println ("Dump requested\n");
 			} else {

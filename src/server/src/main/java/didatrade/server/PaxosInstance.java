@@ -229,6 +229,7 @@ public class PaxosInstance {
 	}
 
 	private static final class LearnInfo {
+		// Mapping ballot numbers to values to votes for that value
 		private final Map<Integer, Map<Integer, LearnVotes>> learn_votes = new HashMap<> ();
 
 		boolean recordVote (int ballot, int value, int server_id) {

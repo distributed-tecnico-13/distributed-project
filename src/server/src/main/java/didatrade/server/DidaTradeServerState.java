@@ -99,6 +99,34 @@ public final class DidaTradeServerState {
 		return ballot >= 0 && ballot == this.current_ballot && this.scheduler.leader (ballot) == this.my_id;
 	}
 
+	public int getBalance (int minInstance, int userid) {
+		this.waitForInstanceExecution (minInstance);
+		return this.trade_manager.balance (userid);
+	}
+
+	synchronized void waitForInstanceExecution (int instance) {
+		if (instance == -1)
+			return;
+		final java.util.function.Supplier<Boolean> isExecuted = () -> {
+			PaxosInstance entry = this.paxos_log.getEntry (instance);
+			return entry != null && entry.isExecuted ();
+		};
+		boolean executed = isExecuted.get ();
+		while (!executed) {
+			try {
+				wait ();
+			} catch (InterruptedException e) {
+				Thread.currentThread ().interrupt ();
+				throw new RuntimeException ("Thread interrupted while waiting for instance execution", e);
+			}
+			executed = isExecuted.get ();
+		}
+	}
+
+	public synchronized void notifyInstanceExecuted () {
+		this.notifyAll ();
+	}
+
 	static boolean canProposeFor (
 			int ballot, int current_ballot, int leader, int server_id) {
 		return ballot >= 0 && ballot == current_ballot && leader == server_id;
@@ -194,6 +222,15 @@ public final class DidaTradeServerState {
 				ballot = entry.getAcceptBallot ();
 		}
 		return ballot;
+	}
+
+	public synchronized int findMaxExecutedInstance () {
+		int instance = -1;
+		for (PaxosInstance entry : this.paxos_log.entries ()) {
+			if (entry.isExecuted () && entry.getInstanceNb () > instance)
+				instance = entry.getInstanceNb ();
+		}
+		return instance;
 	}
 
 	public synchronized void updateCompletedBallot (int ballot) {

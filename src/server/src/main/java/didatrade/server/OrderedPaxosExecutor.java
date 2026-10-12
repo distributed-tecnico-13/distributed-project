@@ -23,6 +23,7 @@ final class OrderedPaxosExecutor {
 			if (!entry.isExecuted () && !this.executeCommand (entry))
 				return executed_count;
 			entry.markExecuted ();
+			this.server_state.notifyInstanceExecuted ();
 			this.next_instance_to_execute++;
 			executed_count++;
 		}
@@ -38,15 +39,16 @@ final class OrderedPaxosExecutor {
 		if (this.server_state.req_history.getIfProcessed (command_id) != null)
 			return true;
 
-		boolean result = this.executeAction (record.getRequest ());
+		boolean result = this.executeAction (record.getRequest (), entry.getInstanceNb ());
+
 		record.setResponse (result);
 		this.server_state.req_history.moveToProcessed (command_id);
 		return true;
 	}
 
-	private boolean executeAction (DidaTradeCommand command) {
+	private boolean executeAction (DidaTradeCommand command, int instance) {
 		boolean result = false;
-		int balance;
+		command.setInstance (instance);
 		switch (command.getAction ()) {
 			case DidaTradeAction.POPULATE :
 				result = this.server_state.trade_manager.populate (command.getQuantity ());
@@ -62,11 +64,6 @@ final class OrderedPaxosExecutor {
 			case DidaTradeAction.BUY :
 				result = this.server_state.trade_manager.acquire (
 						command.getUserId (), command.getQuantity ());
-				break;
-			case DidaTradeAction.BALANCE :
-				balance = this.server_state.trade_manager.balance (command.getUserId ());
-				command.setQuantity (balance);
-				result = balance != -1;
 				break;
 			case DidaTradeAction.DUMP :
 				this.server_state.trade_manager.dump ();

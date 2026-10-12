@@ -48,7 +48,7 @@ public class DidaTradeMainServiceImpl extends DidaTradeMainServiceGrpc.DidaTrade
 		// for debug purposes
 		System.out.println ("Result is ready for open request with reqid " + reqid);
 
-		DidaTradeMain.PopulateReply response = DidaTradeMain.PopulateReply.newBuilder ().setReqid (reqid).setResult (result).build ();
+		DidaTradeMain.PopulateReply response = DidaTradeMain.PopulateReply.newBuilder ().setReqid (reqid).setResult (result).setInstance (command.getInstance ()).build ();
 		responseObserver.onNext (response);
 		responseObserver.onCompleted ();
 	}
@@ -78,7 +78,7 @@ public class DidaTradeMainServiceImpl extends DidaTradeMainServiceGrpc.DidaTrade
 		// for debug purposes
 		System.out.println ("Result is ready for add request with reqid " + reqid);
 
-		DidaTradeMain.AddUserReply response = DidaTradeMain.AddUserReply.newBuilder ().setReqid (reqid).setResult (result).build ();
+		DidaTradeMain.AddUserReply response = DidaTradeMain.AddUserReply.newBuilder ().setReqid (reqid).setResult (result).setInstance (command.getInstance ()).build ();
 
 		responseObserver.onNext (response);
 		responseObserver.onCompleted ();
@@ -107,7 +107,7 @@ public class DidaTradeMainServiceImpl extends DidaTradeMainServiceGrpc.DidaTrade
 		// for debug purposes
 		System.out.println ("Result is ready for add request with reqid " + reqid);
 
-		DidaTradeMain.BuyReply response = DidaTradeMain.BuyReply.newBuilder ().setReqid (reqid).setResult (result).build ();
+		DidaTradeMain.BuyReply response = DidaTradeMain.BuyReply.newBuilder ().setReqid (reqid).setResult (result).setInstance (command.getInstance ()).build ();
 
 		responseObserver.onNext (response);
 		responseObserver.onCompleted ();
@@ -137,7 +137,7 @@ public class DidaTradeMainServiceImpl extends DidaTradeMainServiceGrpc.DidaTrade
 		// for debug purposes
 		System.out.println ("Result is ready for add request with reqid " + reqid);
 
-		DidaTradeMain.SellReply response = DidaTradeMain.SellReply.newBuilder ().setReqid (reqid).setResult (result).build ();
+		DidaTradeMain.SellReply response = DidaTradeMain.SellReply.newBuilder ().setReqid (reqid).setResult (result).setInstance (command.getInstance ()).build ();
 
 		responseObserver.onNext (response);
 		responseObserver.onCompleted ();
@@ -150,24 +150,25 @@ public class DidaTradeMainServiceImpl extends DidaTradeMainServiceGrpc.DidaTrade
 
 		int reqid = request.getReqid ();
 		int uid = request.getUserid ();
+		int minExecutedInstance = request.getMininstance ();
 
 		// for debug purposes
 		System.out.println ("reqid " + reqid + " userid " + uid);
 
-		DidaTradeCommand command = new DidaTradeCommand (DidaTradeAction.BALANCE, uid);
-
 		this.server_state.applyDebugState ();
 
 		// for debug purposes
-		System.out.println ("Adding balance request with reqid " + reqid + " to pending");
+		System.out.println ("Executing balance req with reqid " + reqid);
 
-		boolean result = this.submitAndWait (reqid, command);
+		int balance = this.server_state.getBalance (minExecutedInstance, uid);
+		boolean result = balance != -1;
 
 		// for debug purposes
-		System.out.println ("Result is ready for add request with reqid " + reqid);
+		System.out.println ("Result for balance request is ready: " + reqid);
 
-		int balance = command.getQuantity ();
-		DidaTradeMain.BalanceReply response = DidaTradeMain.BalanceReply.newBuilder ().setReqid (reqid).setResult (result).setBalance (balance).build ();
+		int max_instance = this.server_state.findMaxExecutedInstance ();
+
+		DidaTradeMain.BalanceReply response = DidaTradeMain.BalanceReply.newBuilder ().setReqid (reqid).setResult (result).setBalance (balance).setInstance (max_instance).build ();
 
 		responseObserver.onNext (response);
 		responseObserver.onCompleted ();
@@ -195,7 +196,7 @@ public class DidaTradeMainServiceImpl extends DidaTradeMainServiceGrpc.DidaTrade
 		// for debug purposes
 		System.out.println ("Result is ready for dump request with reqid " + reqid);
 
-		DidaTradeMain.DumpReply response = DidaTradeMain.DumpReply.newBuilder ().setReqid (reqid).setResult (result).build ();
+		DidaTradeMain.DumpReply response = DidaTradeMain.DumpReply.newBuilder ().setReqid (reqid).setResult (result).setInstance (command.getInstance ()).build ();
 
 		responseObserver.onNext (response);
 		responseObserver.onCompleted ();
