@@ -23,7 +23,7 @@ final class OrderedPaxosExecutor {
 			if (!entry.isExecuted () && !this.executeCommand (entry))
 				return executed_count;
 			entry.markExecuted ();
-			this.server_state.notifyInstanceExecuted ();
+			this.server_state.setLastExecutedInstance (this.next_instance_to_execute);
 			this.next_instance_to_execute++;
 			executed_count++;
 		}

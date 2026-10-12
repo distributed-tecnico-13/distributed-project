@@ -35,6 +35,7 @@ public final class DidaTradeServerState {
 	private boolean fastpaxos_on;
 	private int fast_first_instance;
 	private int ran_phase_one_for_ballot;
+	private int last_executed_instance;
 
 	MainLoop main_loop;
 	Thread main_loop_worker;
@@ -52,6 +53,7 @@ public final class DidaTradeServerState {
 		this.paxos_log = new PaxosLog ();
 		this.main_loop = new MainLoop (this);
 		this.ran_phase_one_for_ballot = -1;
+		this.last_executed_instance = -1;
 
 		// populate manager
 		this.trade_manager.populate (DEFAULT_POPULATION);
@@ -105,26 +107,29 @@ public final class DidaTradeServerState {
 	}
 
 	synchronized void waitForInstanceExecution (int instance) {
-		if (instance == -1)
-			return;
-		final java.util.function.Supplier<Boolean> isExecuted = () -> {
-			PaxosInstance entry = this.paxos_log.getEntry (instance);
-			return entry != null && entry.isExecuted ();
-		};
-		boolean executed = isExecuted.get ();
-		while (!executed) {
+		// Starts at -1, so a client that has observed nothing never waits.
+		while (!isExecuted (instance)) {
 			try {
 				wait ();
 			} catch (InterruptedException e) {
 				Thread.currentThread ().interrupt ();
 				throw new RuntimeException ("Thread interrupted while waiting for instance execution", e);
 			}
-			executed = isExecuted.get ();
 		}
 	}
 
-	public synchronized void notifyInstanceExecuted () {
+	public synchronized boolean isExecuted (int instance) {
+		return this.last_executed_instance >= instance;
+	}
+
+	// Only the executor advances this, in log order, so every lower instance is executed too.
+	public synchronized void setLastExecutedInstance (int instance) {
+		this.last_executed_instance = instance;
 		this.notifyAll ();
+	}
+
+	public synchronized int getLastExecutedInstance () {
+		return this.last_executed_instance;
 	}
 
 	static boolean canProposeFor (
@@ -136,6 +141,7 @@ public final class DidaTradeServerState {
 	DidaTradeServerState() {
 		this.current_ballot = 0;
 		this.debug_state = new DebugState ();
+		this.last_executed_instance = -1;
 	}
 
 	// Lock order: server state, then one PaxosInstance. No RPC runs under either lock.
@@ -222,15 +228,6 @@ public final class DidaTradeServerState {
 				ballot = entry.getAcceptBallot ();
 		}
 		return ballot;
-	}
-
-	public synchronized int findMaxExecutedInstance () {
-		int instance = -1;
-		for (PaxosInstance entry : this.paxos_log.entries ()) {
-			if (entry.isExecuted () && entry.getInstanceNb () > instance)
-				instance = entry.getInstanceNb ();
-		}
-		return instance;
 	}
 
 	public synchronized void updateCompletedBallot (int ballot) {

@@ -166,7 +166,7 @@ public class DidaTradeMainServiceImpl extends DidaTradeMainServiceGrpc.DidaTrade
 		// for debug purposes
 		System.out.println ("Result for balance request is ready: " + reqid);
 
-		int max_instance = this.server_state.findMaxExecutedInstance ();
+		int max_instance = this.server_state.getLastExecutedInstance ();
 
 		DidaTradeMain.BalanceReply response = DidaTradeMain.BalanceReply.newBuilder ().setReqid (reqid).setResult (result).setBalance (balance).setInstance (max_instance).build ();
 

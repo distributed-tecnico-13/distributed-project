@@ -88,10 +88,10 @@ class CausalBalanceTest {
 	}
 
 	@Test
-	void maxExecutedInstanceIgnoresDecidedButUnexecutedInstances () {
+	void lastExecutedInstanceStopsBeforeGap () {
 		DidaTradeServerState state = newState ();
 		OrderedPaxosExecutor executor = new OrderedPaxosExecutor (state);
-		assertEquals (-1, state.findMaxExecutedInstance ());
+		assertEquals (-1, state.getLastExecutedInstance ());
 
 		addUserRequest (state, 101, 7, 100);
 		addUserRequest (state, 201, 8, 200);
@@ -101,7 +101,7 @@ class CausalBalanceTest {
 		decide (state, 3, 401);
 
 		assertEquals (2, executor.drain ());
-		assertEquals (1, state.findMaxExecutedInstance ());
+		assertEquals (1, state.getLastExecutedInstance ());
 	}
 
 	@Test
