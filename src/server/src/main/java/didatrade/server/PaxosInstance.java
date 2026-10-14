@@ -11,6 +11,7 @@ public class PaxosInstance {
 	private int read_ballot;
 	private int write_ballot;
 	private int accepted_value;
+	private boolean accepted_classic = true;
 	private int accept_ballot;
 	private final LearnInfo learn_info = new LearnInfo ();
 	private boolean decided;
@@ -78,7 +79,7 @@ public class PaxosInstance {
 	}
 
 	public synchronized AcceptedSnapshot getAcceptedSnapshot () {
-		return new AcceptedSnapshot (this.accepted_value, this.write_ballot);
+		return new AcceptedSnapshot (this.accepted_value, this.write_ballot, this.accepted_classic);
 	}
 
 	public synchronized boolean recordLearn (
@@ -151,8 +152,13 @@ public class PaxosInstance {
 
 	// Only an actual successful Phase 2 changes acceptor-owned proposal bookkeeping.
 	public synchronized void noteClassicAcceptance (int ballot, int value) {
+		this.accepted_classic = true;
 		if (!this.decided)
 			this.proposal.proposed_request_id = value;
+	}
+
+	public synchronized void noteFastAcceptance (int ballot) {
+		this.accepted_classic = false;
 	}
 
 	public synchronized int phaseTwoValueFor (int ballot, int selected_value) {
@@ -320,7 +326,10 @@ public class PaxosInstance {
 		final int value;
 		final int valballot;
 
-		AcceptedSnapshot(int value, int valballot) {
+		final boolean classic;
+
+		AcceptedSnapshot(int value, int valballot, boolean classic) {
+			this.classic = classic;
 			this.value = value;
 			this.valballot = valballot;
 		}

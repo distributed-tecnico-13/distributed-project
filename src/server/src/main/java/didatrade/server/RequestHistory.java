@@ -62,6 +62,20 @@ public class RequestHistory {
 		return true;
 	}
 
+	public synchronized RequestRecord installIfAbsent (int id, DidaTradeCommand command) {
+		if (!CommandIdHelper.isClientRequest (id))
+			throw new IllegalArgumentException ("Invalid request id");
+		RequestRecord existing = this.getIfExists (id);
+		if (existing != null) {
+			if (!CommandTransfer.same (existing.getRequest (), command))
+				throw new IllegalArgumentException ("Conflicting payload for request " + id);
+			return existing;
+		}
+		RequestRecord record = new RequestRecord (id, command);
+		this.pending.put (id, record);
+		return record;
+	}
+
 	public synchronized RequestRecord moveToProcessed (int requestid) {
 		RequestRecord record = this.pending.remove (requestid);
 		if (record != null)

@@ -60,6 +60,11 @@ public class MainLoop implements Runnable {
 		if (!this.proposer.prepare (ballot))
 			return false;
 
+		if (this.server_state.scheduler.dynamicMembership () && !this.proposer.transferComplete (ballot)) {
+			if (!this.proposer.fastRecoveryComplete (ballot))
+				return this.scheduleRecovery (ballot);
+			return this.proposer.finishTransfer (ballot);
+		}
 		if (this.server_state.scheduler.fastpaxos (ballot))
 			return this.scheduleFastBallot (ballot);
 		return this.scheduleClassicBallot (ballot);
@@ -74,6 +79,10 @@ public class MainLoop implements Runnable {
 		if (this.proposer.fastRecoveryComplete (ballot))
 			return this.proposer.openFastRound (ballot);
 
+		return this.scheduleRecovery (ballot);
+	}
+
+	private boolean scheduleRecovery (int ballot) {
 		boolean submitted = false;
 		int limit = this.proposer.recoveryLimit (ballot);
 		for (int instance = 0; instance < limit; instance++) {
@@ -117,6 +126,8 @@ public class MainLoop implements Runnable {
 		if (!this.server_state.hasRunPhaseOne (ballot))
 			return PaxosProposer.RETRY_DELAY_MILLIS;
 
+		if (this.server_state.scheduler.dynamicMembership () && !this.proposer.transferComplete (ballot))
+			return this.nextRecoveryRetryDelayMillis (ballot);
 		if (this.server_state.scheduler.fastpaxos (ballot)) {
 			if (this.proposer.hasFastOpeningQuorum (ballot))
 				return -1;

@@ -20,13 +20,16 @@ final class PaxosLearnerNotifier {
 		Context context = Context.current ().fork ();
 		context.run ( () -> {
 			List<Integer> learners = state.scheduler.learners (ballot);
-			DidaTradePaxos.LearnRequest request = DidaTradePaxos.LearnRequest.newBuilder ()
+			DidaTradePaxos.LearnRequest.Builder builder = DidaTradePaxos.LearnRequest.newBuilder ()
 					.setInstance (instance)
 					.setValue (value)
 					.setBallot (ballot)
 					.setServerid (state.my_id)
-					.setClassic (classic)
-					.build ();
+					.setClassic (classic);
+			RequestRecord record = state.req_history.getIfExists (value);
+			if (record != null)
+				builder.setCommand (CommandTransfer.encode (record));
+			DidaTradePaxos.LearnRequest request = builder.build ();
 
 			System.out.println ("Paxos acceptor: going to notify learners for entry "
 					+ instance + " with timestamp " + ballot + " request = " + request);

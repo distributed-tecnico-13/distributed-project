@@ -68,6 +68,13 @@ public class PaxosLog {
 		return entry;
 	}
 
+	public synchronized boolean hasDecidedRequest (int request_id) {
+		for (PaxosInstance entry : this.log.values ())
+			if (entry.isDecided () && entry.getCommandId () == request_id)
+				return true;
+		return false;
+	}
+
 	public synchronized PaxosInstance assignFastRequest (int request_id) {
 		return this.assignFastRequest (request_id, 0);
 	}
