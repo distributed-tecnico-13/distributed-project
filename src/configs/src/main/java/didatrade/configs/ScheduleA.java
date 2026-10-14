@@ -46,6 +46,7 @@ public class ScheduleA extends Schedule {
 	}
 
 	public boolean fastpaxos (int ballot) {
-		return ((ballot % 3) == 0);
+		// Schedule A always runs classic Multi-Paxos (quorum 2 of 3).
+		return false;
 	}
 }

@@ -82,6 +82,12 @@ final class PaxosProposer {
 		return true;
 	}
 
+	// Distinct from isFastRoundOpen(), which is local acceptor state.
+	boolean hasFastOpeningQuorum (int ballot) {
+		return this.opened_fast_ballot == ballot
+				&& this.server_state.canCoordinateFastRound (ballot);
+	}
+
 	boolean openFastRound (int ballot) {
 		if (!this.server_state.canCoordinateFastRound (ballot)
 				|| !this.fastRecoveryComplete (ballot))

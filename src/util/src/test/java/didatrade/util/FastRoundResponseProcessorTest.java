@@ -13,6 +13,22 @@ import didatrade.DidaTradePaxos;
 class FastRoundResponseProcessorTest {
 
 	@Test
+	void fiveAcceptorScheduleRequiresFourDistinctOpenAcknowledgements () {
+		FastRoundResponseProcessor processor = new FastRoundResponseProcessor (
+				4, List.of (0, 1, 2, 3, 4));
+		ArrayList<DidaTradePaxos.OpenFastReply> responses = new ArrayList<> ();
+
+		assertFalse (processor.onNext (responses, acceptedReply (0)));
+		assertFalse (processor.onNext (responses, acceptedReply (1)));
+		assertFalse (processor.onNext (responses, acceptedReply (2)));
+		assertFalse (processor.getAccepted ());
+		assertFalse (processor.onNext (responses, acceptedReply (2))); // duplicate
+		assertFalse (processor.getAccepted ());
+		assertTrue (processor.onNext (responses, acceptedReply (3)));
+		assertTrue (processor.getAccepted ());
+	}
+
+	@Test
 	void fastQuorumTerminatesOpeningWithoutWaitingForLastAcceptor () {
 		FastRoundResponseProcessor processor = new FastRoundResponseProcessor (2, List.of (0, 1, 2));
 		ArrayList<DidaTradePaxos.OpenFastReply> responses = new ArrayList<> ();

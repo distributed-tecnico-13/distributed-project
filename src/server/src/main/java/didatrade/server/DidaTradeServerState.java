@@ -180,29 +180,7 @@ public final class DidaTradeServerState {
 
 		PaxosInstance entry = this.paxos_log.assignFastRequest (request_id, this.fast_first_instance);
 		boolean accepted = entry.accept (ballot, request_id);
-		if (accepted)
-			entry.noteFastAcceptance (ballot);
 		return new FastVoteState (accepted, ballot, entry.getInstanceNb ());
-	}
-
-	public synchronized boolean hasStalledFastSlot (int ballot, long timeout_nanos) {
-		if (!this.isFastRoundOpen (ballot) || this.paxos_log == null)
-			return false;
-		long now = System.nanoTime ();
-		for (PaxosInstance entry : this.paxos_log.entries ())
-			if (entry.stalledFastVote (ballot, now, timeout_nanos))
-				return true;
-		return false;
-	}
-
-	public synchronized boolean advanceFromFailedFastBallot (int ballot) {
-		if (this.scheduler == null || ballot != this.current_ballot
-				|| !this.scheduler.fastpaxos (ballot))
-			return false;
-		this.current_ballot = ballot + 1;
-		this.fastpaxos_on = false;
-		this.notifyAll ();
-		return true;
 	}
 
 	public synchronized int getCompletedBallot () {

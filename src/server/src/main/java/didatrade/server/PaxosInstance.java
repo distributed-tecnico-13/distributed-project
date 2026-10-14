@@ -13,8 +13,6 @@ public class PaxosInstance {
 	private int accepted_value;
 	private int accept_ballot;
 	private final LearnInfo learn_info = new LearnInfo ();
-	private long first_undecided_fast_vote_nanos = -1;
-	private int first_undecided_fast_vote_ballot = -1;
 	private boolean decided;
 	private boolean value_is_locked;
 	private boolean executed;
@@ -89,8 +87,6 @@ public class PaxosInstance {
 			return false;
 		if (!this.learn_info.recordVote (ballot, value, server_id))
 			return false;
-		if (!this.decided)
-			this.noteUndecidedFastVote (ballot);
 		if (this.learn_info.acceptCount (ballot, value) < quorum)
 			return false;
 		int highest_ballot = this.learn_info.findHighestBallotWithQuorum (quorum);
@@ -121,21 +117,6 @@ public class PaxosInstance {
 		return this.learn_info.cannotReachQuorum (ballot, quorum, n_acceptors);
 	}
 
-	// A stalled slot is *not* proof that no value was chosen: higher-ballot Phase 1
-	// must recover any previously chosen value before proposing a new one.
-	private void noteUndecidedFastVote (int ballot) {
-		if (this.first_undecided_fast_vote_ballot != ballot) {
-			this.first_undecided_fast_vote_ballot = ballot;
-			this.first_undecided_fast_vote_nanos = System.nanoTime ();
-		}
-	}
-
-	public synchronized boolean stalledFastVote (int ballot, long now_nanos, long timeout_nanos) {
-		return !this.decided && this.first_undecided_fast_vote_ballot == ballot
-				&& this.first_undecided_fast_vote_nanos >= 0
-				&& now_nanos - this.first_undecided_fast_vote_nanos >= timeout_nanos;
-	}
-
 	public synchronized int getProposedRequestId () {
 		return this.proposal.proposed_request_id;
 	}
@@ -161,11 +142,6 @@ public class PaxosInstance {
 	public synchronized void noteClassicAcceptance (int ballot, int value) {
 		if (!this.decided)
 			this.proposal.proposed_request_id = value;
-	}
-
-	public synchronized void noteFastAcceptance (int ballot) {
-		if (!this.decided)
-			this.noteUndecidedFastVote (ballot);
 	}
 
 	public synchronized int phaseTwoValueFor (int ballot, int selected_value) {

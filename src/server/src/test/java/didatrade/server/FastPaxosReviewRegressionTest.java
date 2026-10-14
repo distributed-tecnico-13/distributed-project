@@ -12,6 +12,22 @@ import didatrade.configs.ConfigurationScheduler;
 class FastPaxosReviewRegressionTest {
 
     @Test
+    void acceptorLocalFastOpenDoesNotImplyLeaderOpeningQuorum () {
+        DidaTradeServerState state = new DidaTradeServerState ();
+        state.scheduler = new ConfigurationScheduler ('B');
+        state.paxos_log = new PaxosLog ();
+        state.my_id = 0;
+        state.setRanPhaseOne (0);
+        PaxosProposer proposer = new PaxosProposer (state);
+
+        // A partial openfast exchange may open the coordinator's own acceptor,
+        // but fewer than four acknowledgements cannot establish the Fast round.
+        assertTrue (state.openFastRound (0));
+        assertTrue (state.isFastRoundOpen (0));
+        assertFalse (proposer.hasFastOpeningQuorum (0));
+    }
+
+    @Test
     void failedReproposalOfDecidedSlotCanRetryInSameBallot () {
         PaxosInstance slot = new PaxosInstance (0);
         assertTrue (slot.decide (0, 100));
@@ -75,17 +91,18 @@ class FastPaxosReviewRegressionTest {
     }
 
     @Test
-    void timedOutUnchosenFastSlotCanTriggerHigherBallotRecovery () {
+    void unchosenFastSlotIsPreservedUntilExplicitBallotChange () {
         DidaTradeServerState state = new DidaTradeServerState ();
         state.scheduler = new ConfigurationScheduler ('B');
         state.paxos_log = new PaxosLog ();
         state.my_id = 0;
         assertTrue (state.openFastRound (0));
         state.processFastVote (100);
-        // A zero timeout is used to exercise the watchdog predicate deterministically.
-        assertTrue (state.hasStalledFastSlot (0, 0));
-        assertTrue (state.advanceFromFailedFastBallot (0));
+        assertEquals (0, state.getCurrentBallot ());
+        assertEquals (100, state.paxos_log.getEntry (0).getAcceptedValue ());
+        state.setCurrentBallot (1);
         assertEquals (1, state.getCurrentBallot ());
+        assertEquals (100, state.paxos_log.getEntry (0).getAcceptedValue ());
     }
 
     @Test

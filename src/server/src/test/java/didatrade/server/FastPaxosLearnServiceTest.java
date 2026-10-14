@@ -29,7 +29,7 @@ class FastPaxosLearnServiceTest {
 	}
 
 	@Test
-	void threeWayFastCollisionAutomaticallyAdvancesConfiguration () {
+	void threeWayFastCollisionWaitsForManualBallotChange () {
 		DidaTradeServerState state = state ();
 		DidaTradePaxosServiceImpl service = new DidaTradePaxosServiceImpl (state);
 
@@ -41,22 +41,25 @@ class FastPaxosLearnServiceTest {
 		PaxosInstance entry = state.paxos_log.getEntry (0);
 		assertFalse (entry.isDecided ());
 		assertTrue (entry.cannotReachQuorum (0, 4, 5));
+		assertEquals (0, state.getCurrentBallot ());
+		// The operator must explicitly select a new ballot to initiate recovery.
+		state.setCurrentBallot (1);
 		assertEquals (1, state.getCurrentBallot ());
 	}
 
 	@Test
-	void staleCollisionEvidenceCannotAdvanceTwice () {
+	void staleCollisionEvidenceNeverAdvancesBallotAutomatically () {
 		DidaTradeServerState state = state ();
 		DidaTradePaxosServiceImpl service = new DidaTradePaxosServiceImpl (state);
 
 		learn (service, 0, 0, 100, 0);
 		learn (service, 0, 0, 200, 1);
 		learn (service, 0, 0, 300, 2);
-		assertEquals (1, state.getCurrentBallot ());
+		assertEquals (0, state.getCurrentBallot ());
 
 		learn (service, 0, 0, 100, 0);
 
-		assertEquals (1, state.getCurrentBallot ());
+		assertEquals (0, state.getCurrentBallot ());
 	}
 
 	@Test

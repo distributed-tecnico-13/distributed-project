@@ -179,7 +179,7 @@ run_app() {
     local output="$3"
     printf '%b' "$commands" | (
         cd "$REPO_ROOT/src/app"
-        timeout 45s mvn -q exec:java -Dexec.args="$client_id 127.0.0.1 $BASE_PORT $E2E_SCHEDULE"
+        timeout "${DAD_E2E_APP_TIMEOUT_SECONDS:-45}s" mvn -q exec:java -Dexec.args="$client_id 127.0.0.1 $BASE_PORT $E2E_SCHEDULE"
     ) >"$output" 2>&1
 }
 

@@ -1,6 +1,7 @@
 package didatrade.configs;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.List;
@@ -8,6 +9,15 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 class ScheduleBFastPaxosTest {
+
+	@Test
+	void scheduleAAlwaysUsesClassicPaxos () {
+		ConfigurationScheduler scheduler = new ConfigurationScheduler ('A');
+		for (int ballot = 0; ballot < 12; ballot++) {
+			assertFalse (scheduler.fastpaxos (ballot));
+			assertEquals (2, scheduler.classicQuorum (ballot));
+		}
+	}
 
 	@Test
 	void everyConfigurationIsFast () {

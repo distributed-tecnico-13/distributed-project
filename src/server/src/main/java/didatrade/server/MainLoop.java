@@ -4,8 +4,6 @@ package didatrade.server;
 public class MainLoop implements Runnable {
 	DidaTradeServerState server_state;
 
-	private static final long FAST_STALL_TIMEOUT_NANOS = java.util.concurrent.TimeUnit.SECONDS.toNanos (4);
-	private static final long FAST_WATCHDOG_MILLIS = 500;
 	private boolean has_work;
 	private final PaxosPipeline pipeline;
 	private final PaxosProposer proposer;
@@ -59,12 +57,6 @@ public class MainLoop implements Runnable {
 
 	private boolean scheduleConsensus () {
 		int ballot = this.server_state.getCurrentBallot ();
-		if (this.server_state.hasStalledFastSlot (ballot, FAST_STALL_TIMEOUT_NANOS)) {
-			// An undecided timeout is not quorum-impossibility evidence. The next ballot
-			// must still use Phase 1 to recover anything that may have been chosen.
-			if (this.server_state.advanceFromFailedFastBallot (ballot))
-				return true;
-		}
 		if (!this.proposer.prepare (ballot))
 			return false;
 
@@ -74,7 +66,9 @@ public class MainLoop implements Runnable {
 	}
 
 	private boolean scheduleFastBallot (int ballot) {
-		if (this.server_state.isFastRoundOpen (ballot))
+		// Local openfast acceptance is NOT evidence that the opening quorum replied.
+		// Retry if this coordinator hasn't confirmed the Fast opening quorum.
+		if (this.proposer.hasFastOpeningQuorum (ballot))
 			return false;
 
 		if (this.proposer.fastRecoveryComplete (ballot))
@@ -118,15 +112,13 @@ public class MainLoop implements Runnable {
 
 	private long nextRetryDelayMillis () {
 		int ballot = this.server_state.getCurrentBallot ();
-		if (this.server_state.isFastRoundOpen (ballot))
-			return FAST_WATCHDOG_MILLIS;
 		if (!this.server_state.canProposeFor (ballot) || !this.pipeline.hasCapacity ())
 			return -1;
 		if (!this.server_state.hasRunPhaseOne (ballot))
 			return PaxosProposer.RETRY_DELAY_MILLIS;
 
 		if (this.server_state.scheduler.fastpaxos (ballot)) {
-			if (this.server_state.isFastRoundOpen (ballot))
+			if (this.proposer.hasFastOpeningQuorum (ballot))
 				return -1;
 			if (this.proposer.fastRecoveryComplete (ballot))
 				return PaxosProposer.RETRY_DELAY_MILLIS;
