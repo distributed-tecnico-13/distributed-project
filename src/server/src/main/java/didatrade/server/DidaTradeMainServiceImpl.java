@@ -20,7 +20,7 @@ public class DidaTradeMainServiceImpl extends DidaTradeMainServiceGrpc.DidaTrade
 		if (!result)
 			return false;
 
-		if (!FastPaxosPath.tryAcceptRequest (this.server_state, reqid))
+		if (!FastPaxosAcceptor.tryAcceptRequest (this.server_state, reqid))
 			this.server_state.main_loop.wakeup ();
 		return request_record.waitForResponse ();
 	}

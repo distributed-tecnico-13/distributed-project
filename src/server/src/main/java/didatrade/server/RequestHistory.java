@@ -35,7 +35,7 @@ public class RequestHistory {
 		return null;
 	}
 
-	public synchronized List<Integer> pendingRequestIds () {
+	public synchronized List<Integer> getPendingRequestIds () {
 		return this.pending.keySet ().stream ().sorted ().toList ();
 	}
 

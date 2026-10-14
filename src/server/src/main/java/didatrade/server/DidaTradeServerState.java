@@ -33,6 +33,7 @@ public final class DidaTradeServerState {
 	private int completed_ballot;
 	private DebugState debug_state;
 	private boolean fastpaxos_on;
+	private int fast_first_instance;
 	private int ran_phase_one_for_ballot;
 
 	MainLoop main_loop;
@@ -85,10 +86,13 @@ public final class DidaTradeServerState {
 	}
 
 	public synchronized void setCurrentBallot (int ballot) {
-		if (ballot > this.current_ballot) {
-			this.current_ballot = ballot;
+		this.disableFastPaxosIfNeeded (ballot);
+		this.current_ballot = Math.max (this.current_ballot, ballot);
+	}
+
+	private void disableFastPaxosIfNeeded (int ballot) {
+		if (ballot > this.current_ballot)
 			this.fastpaxos_on = false;
-		}
 	}
 
 	public synchronized boolean canProposeFor (int ballot) {
@@ -109,33 +113,30 @@ public final class DidaTradeServerState {
 	// Lock order: server state, then one PaxosInstance. No RPC runs under either lock.
 	public synchronized PaxosInstance.PhaseOneState processPhaseOne (
 			PaxosInstance entry, int ballot) {
+		this.disableFastPaxosIfNeeded (ballot);
 		boolean accepted = ballot >= this.current_ballot;
-		if (accepted) {
-			if (ballot > this.current_ballot)
-				this.fastpaxos_on = false;
+		if (accepted)
 			this.current_ballot = ballot;
-		}
 		return entry.phaseOneState (accepted, ballot, this.current_ballot);
 	}
 
 	public synchronized PhaseOneState processPhaseOne (int ballot) {
+		this.disableFastPaxosIfNeeded (ballot);
 		boolean accepted = ballot >= this.current_ballot;
-		if (accepted) {
-			if (ballot > this.current_ballot)
-				this.fastpaxos_on = false;
+		if (accepted)
 			this.current_ballot = ballot;
-		}
 		return new PhaseOneState (accepted, this.current_ballot);
 	}
 
 	public synchronized PhaseTwoState processPhaseTwo (
 			PaxosInstance entry, int ballot, int value) {
+		this.disableFastPaxosIfNeeded (ballot);
 		boolean accepted = false;
 		if (ballot >= this.current_ballot) {
-			if (ballot > this.current_ballot)
-				this.fastpaxos_on = false;
 			this.current_ballot = ballot;
 			accepted = entry.accept (ballot, value);
+			if (accepted)
+				entry.noteClassicAcceptance (ballot, value);
 		}
 		return new PhaseTwoState (accepted, this.current_ballot);
 	}
@@ -145,12 +146,29 @@ public final class DidaTradeServerState {
 				&& this.scheduler != null && this.scheduler.fastpaxos (ballot);
 	}
 
+	public synchronized boolean canCoordinateFastRound (int ballot) {
+		return this.canProposeFor (ballot) && this.scheduler.fastpaxos (ballot)
+				&& this.hasRunPhaseOne (ballot);
+	}
+
+	public synchronized boolean canOpenFastRound (int ballot) {
+		return this.scheduler != null && ballot >= this.current_ballot
+				&& this.scheduler.fastpaxos (ballot)
+				&& this.scheduler.isacceptor (this.my_id, ballot);
+	}
+
 	public synchronized boolean openFastRound (int ballot) {
-		if (this.scheduler == null || ballot != this.current_ballot
-				|| !this.scheduler.fastpaxos (ballot)
-				|| !this.scheduler.isacceptor (this.my_id, ballot))
+		return this.openFastRound (ballot, 0);
+	}
+
+	public synchronized boolean openFastRound (int ballot, int first_fast_instance) {
+		if (!this.canOpenFastRound (ballot) || first_fast_instance < 0)
 			return false;
-		this.fastpaxos_on = true;
+		this.disableFastPaxosIfNeeded (ballot);
+		this.current_ballot = ballot;
+		// Never allow Fast proposals to reuse slots reserved for classic recovery.
+		this.fast_first_instance = Math.max (this.fast_first_instance, first_fast_instance);
+		this.setFastPaxosMode (true);
 		return true;
 	}
 
@@ -160,9 +178,21 @@ public final class DidaTradeServerState {
 				|| !this.scheduler.isacceptor (this.my_id, ballot))
 			return new FastVoteState (false, ballot, -1);
 
-		PaxosInstance entry = this.paxos_log.assignFastRequest (request_id);
+		PaxosInstance entry = this.paxos_log.assignFastRequest (request_id, this.fast_first_instance);
 		boolean accepted = entry.accept (ballot, request_id);
+		if (accepted)
+			entry.noteFastAcceptance (ballot);
 		return new FastVoteState (accepted, ballot, entry.getInstanceNb ());
+	}
+
+	public synchronized boolean hasStalledFastSlot (int ballot, long timeout_nanos) {
+		if (!this.isFastRoundOpen (ballot) || this.paxos_log == null)
+			return false;
+		long now = System.nanoTime ();
+		for (PaxosInstance entry : this.paxos_log.entries ())
+			if (entry.stalledFastVote (ballot, now, timeout_nanos))
+				return true;
+		return false;
 	}
 
 	public synchronized boolean advanceFromFailedFastBallot (int ballot) {

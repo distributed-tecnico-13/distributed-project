@@ -16,7 +16,7 @@ class FastPaxosPhaseOneRecoveryTest {
 	private static final int REQUEST_BALLOT = 6;
 
 	@Test
-	void splitFastVotesRemainAmbiguousUntilThirdAcceptorReplies () {
+	void splitFastVotesRecoverOnlyValueThatCouldReachFourVotes () {
 		PhaseOneResponseProcessor processor = fastProcessor ();
 
 		assertFalse (process (processor, accepted (0, entry (0, 5, 100))));
@@ -30,11 +30,12 @@ class FastPaxosPhaseOneRecoveryTest {
 	}
 
 	@Test
-	void matchingFastQuorumCanBeRecoveredWithoutWaitingForThirdReply () {
+	void matchingFastVotesNeedThirdPrepareReplyButRecoverCorrectly () {
 		PhaseOneResponseProcessor processor = fastProcessor ();
 
 		assertFalse (process (processor, accepted (0, entry (0, 5, 100))));
-		assertTrue (process (processor, accepted (1, entry (0, 5, 100))));
+		assertFalse (process (processor, accepted (1, entry (0, 5, 100))));
+		assertTrue (process (processor, accepted (2, entry (0, 5, 100))));
 
 		assertTrue (processor.getAccepted ());
 		assertEquals (100, processor.commandFor (0));
@@ -58,7 +59,8 @@ class FastPaxosPhaseOneRecoveryTest {
 		PhaseOneResponseProcessor processor = fastProcessor ();
 
 		assertFalse (process (processor, accepted (0, entry (0, 3, 100))));
-		assertTrue (process (processor, accepted (1, entry (0, 5, 200))));
+		assertFalse (process (processor, accepted (1, entry (0, 5, 200))));
+		assertTrue (process (processor, accepted (2)));
 
 		assertTrue (processor.getAccepted ());
 		assertEquals (5, processor.ballotFor (0));

@@ -19,6 +19,8 @@ class FastPaxosLearnServiceTest {
 
 		learn (service, 0, 0, 100, 0);
 		learn (service, 0, 0, 100, 1);
+		learn (service, 0, 0, 100, 2);
+		learn (service, 0, 0, 100, 3);
 
 		PaxosInstance entry = state.paxos_log.getEntry (0);
 		assertTrue (entry.isDecided ());
@@ -38,7 +40,7 @@ class FastPaxosLearnServiceTest {
 
 		PaxosInstance entry = state.paxos_log.getEntry (0);
 		assertFalse (entry.isDecided ());
-		assertTrue (entry.cannotReachQuorum (0, 2, 3));
+		assertTrue (entry.cannotReachQuorum (0, 4, 5));
 		assertEquals (1, state.getCurrentBallot ());
 	}
 
@@ -67,10 +69,33 @@ class FastPaxosLearnServiceTest {
 		learn (service, 0, 0, 200, 1);
 		assertFalse (state.paxos_log.getEntry (0).isDecided ());
 		learn (service, 0, 0, 100, 2);
+		learn (service, 0, 0, 100, 3);
+		learn (service, 0, 0, 100, 4);
 
 		assertTrue (state.paxos_log.getEntry (0).isDecided ());
 		assertEquals (100, state.paxos_log.getEntry (0).getCommandId ());
 		assertEquals (0, state.getCurrentBallot ());
+	}
+
+	@Test
+	void threeClassicPhaseTwoLearnsDecideRecoveredSlotInScheduleB () {
+		DidaTradeServerState state = state ();
+		DidaTradePaxosServiceImpl service = new DidaTradePaxosServiceImpl (state);
+
+		for (int acceptor = 0; acceptor < 2; acceptor++)
+			learnClassic (service, 0, 1, 100, acceptor);
+		assertFalse (state.paxos_log.getEntry (0).isDecided ());
+		learnClassic (service, 0, 1, 100, 2);
+		assertTrue (state.paxos_log.getEntry (0).isDecided ());
+		assertEquals (100, state.paxos_log.getEntry (0).getCommandId ());
+	}
+
+	private void learnClassic (
+			DidaTradePaxosServiceImpl service, int instance, int ballot, int value, int server_id) {
+		DidaTradePaxos.LearnRequest request = DidaTradePaxos.LearnRequest.newBuilder ()
+				.setInstance (instance).setBallot (ballot).setValue (value)
+				.setServerid (server_id).setClassic (true).build ();
+		service.learn (request, NOOP_OBSERVER);
 	}
 
 	private DidaTradeServerState state () {

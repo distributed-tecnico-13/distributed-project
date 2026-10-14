@@ -4,6 +4,8 @@ package didatrade.server;
 public class MainLoop implements Runnable {
 	DidaTradeServerState server_state;
 
+	private static final long FAST_STALL_TIMEOUT_NANOS = java.util.concurrent.TimeUnit.SECONDS.toNanos (4);
+	private static final long FAST_WATCHDOG_MILLIS = 500;
 	private boolean has_work;
 	private final PaxosPipeline pipeline;
 	private final PaxosProposer proposer;
@@ -18,10 +20,7 @@ public class MainLoop implements Runnable {
 	}
 
 	public void run () {
-		// Do not prepare/open ballot 0 while replicas are still starting. The project
-		// guarantees that all servers are running before clients start, so wait for the
-		// first client/configuration event before starting consensus. This also prevents
-		// a Fast round from being opened on only the first replicas that happened to bind.
+		// Wait for the first event so startup cannot open an incomplete Fast cluster.
 		this.waitForWork (-1);
 
 		while (!Thread.currentThread ().isInterrupted ()) {
@@ -60,6 +59,12 @@ public class MainLoop implements Runnable {
 
 	private boolean scheduleConsensus () {
 		int ballot = this.server_state.getCurrentBallot ();
+		if (this.server_state.hasStalledFastSlot (ballot, FAST_STALL_TIMEOUT_NANOS)) {
+			// An undecided timeout is not quorum-impossibility evidence. The next ballot
+			// must still use Phase 1 to recover anything that may have been chosen.
+			if (this.server_state.advanceFromFailedFastBallot (ballot))
+				return true;
+		}
 		if (!this.proposer.prepare (ballot))
 			return false;
 
@@ -113,6 +118,8 @@ public class MainLoop implements Runnable {
 
 	private long nextRetryDelayMillis () {
 		int ballot = this.server_state.getCurrentBallot ();
+		if (this.server_state.isFastRoundOpen (ballot))
+			return FAST_WATCHDOG_MILLIS;
 		if (!this.server_state.canProposeFor (ballot) || !this.pipeline.hasCapacity ())
 			return -1;
 		if (!this.server_state.hasRunPhaseOne (ballot))

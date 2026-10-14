@@ -30,7 +30,7 @@ public class PhaseOneResponseProcessor
 	public PhaseOneResponseProcessor(ConfigurationScheduler s, int h) {
 		this.scheduler = s;
 		this.high_ballot = h;
-		this.quorum = this.scheduler.quorum (this.high_ballot);
+		this.quorum = this.scheduler.recoveryQuorum (this.high_ballot);
 		this.acceptors = new HashSet<> (this.scheduler.acceptors (this.high_ballot));
 		this.responders = new HashSet<> ();
 		this.accepted = false;
@@ -130,18 +130,16 @@ public class PhaseOneResponseProcessor
 
 		int missing_acceptors = Math.max (0, this.acceptors.size () - this.responders.size ());
 		List<Integer> possible_chosen_values = observations.value_count.entrySet ().stream ()
-				.filter (entry -> entry.getValue () + missing_acceptors >= this.quorum)
+				.filter (entry -> entry.getValue () + missing_acceptors
+						>= this.scheduler.fastQuorum (observations.ballot))
 				.map (Map.Entry::getKey)
 				.sorted ()
 				.toList ();
 
-		// More than one value may already be chosen, so wait for the missing acceptors.
-		// Fast rounds use the classic quorum (2 of 3 in Schedule B), so a Fast round
-		// survives one crash. The price is recovery: if acceptor 1 voted A and acceptor 2
-		// voted B, a crashed acceptor 0 may have completed either {0,1} or {0,2}. Picking
-		// one could overwrite a chosen value, so Phase 1 cannot finish until acceptor 0
-		// answers. A fast quorum of all 3 would let recovery finish with 2 replies, but
-		// then a Fast round could not decide with one acceptor down.
+		// If multiple reported values could have reached the Fast quorum, the
+		// coordinator cannot safely recover this slot until further replies arrive.
+		// With five acceptors, a Fast decision requires four matching votes;
+		// Phase 1 can complete after a recovery quorum of three responses.
 		if (possible_chosen_values.size () > 1)
 			return null;
 		if (possible_chosen_values.size () == 1)

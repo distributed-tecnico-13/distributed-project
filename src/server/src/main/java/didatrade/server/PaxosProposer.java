@@ -83,9 +83,7 @@ final class PaxosProposer {
 	}
 
 	boolean openFastRound (int ballot) {
-		if (!this.server_state.canProposeFor (ballot)
-				|| !this.server_state.scheduler.fastpaxos (ballot)
-				|| !this.server_state.hasRunPhaseOne (ballot)
+		if (!this.server_state.canCoordinateFastRound (ballot)
 				|| !this.fastRecoveryComplete (ballot))
 			return false;
 		if (this.opened_fast_ballot == ballot)
@@ -93,10 +91,11 @@ final class PaxosProposer {
 
 		List<Integer> acceptors = this.server_state.scheduler.acceptors (ballot);
 		DidaTradePaxos.OpenFastRequest request = DidaTradePaxos.OpenFastRequest.newBuilder ()
+				.setFirstfastinstance (this.recoveryLimit (ballot))
 				.setBallot (ballot)
 				.build ();
 		FastRoundResponseProcessor processor = new FastRoundResponseProcessor (
-				this.server_state.scheduler.quorum (ballot), acceptors);
+				this.server_state.scheduler.fastQuorum (ballot), acceptors);
 		ArrayList<DidaTradePaxos.OpenFastReply> responses = new ArrayList<> ();
 		GenericResponseCollector<DidaTradePaxos.OpenFastReply> collector = new GenericResponseCollector<> (
 				responses, acceptors.size (), processor);
@@ -131,14 +130,20 @@ final class PaxosProposer {
 			this.server_state.paxos_log.replaceProposedRequestId (instance, phase_two_value);
 			List<Integer> acceptors = this.server_state.scheduler.acceptors (ballot);
 			if (this.runPhaseTwo (instance, ballot, phase_two_value, acceptors,
-					acceptors.size (), this.server_state.scheduler.quorum (ballot)))
+					acceptors.size (), this.server_state.scheduler.classicQuorum (ballot)))
 				return;
 
-			if (entry.decide (ballot, phase_two_value))
-				this.server_state.updateCompletedBallot (ballot);
+			this.finishSuccessfulPhaseTwo (entry, ballot, phase_two_value);
 		} finally {
 			entry.releaseClaim (ballot, TimeUnit.MILLISECONDS.toNanos (RETRY_DELAY_MILLIS));
 		}
+	}
+
+	// Phase 2 reached a classic quorum. Even an already-decided slot needs its
+	// higher-ballot completion recorded; otherwise newballot may wait forever.
+	void finishSuccessfulPhaseTwo (PaxosInstance entry, int ballot, int value) {
+		entry.decide (ballot, value);
+		this.server_state.updateCompletedBallot (ballot);
 	}
 
 	private PhaseOneResult runPhaseOne (

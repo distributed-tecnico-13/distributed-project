@@ -69,12 +69,17 @@ public class PaxosLog {
 	}
 
 	public synchronized PaxosInstance assignFastRequest (int request_id) {
+		return this.assignFastRequest (request_id, 0);
+	}
+
+	public synchronized PaxosInstance assignFastRequest (int request_id, int first_fast_instance) {
 		for (PaxosInstance candidate : this.log.values ()) {
-			if (candidate.getUnexecutedRequestId () == request_id)
+			if (candidate.getInstanceNb () >= first_fast_instance
+					&& candidate.getUnexecutedRequestId () == request_id)
 				return candidate;
 		}
 
-		int position = 0;
+		int position = first_fast_instance;
 		while (true) {
 			PaxosInstance entry = this.log.get (position);
 			if (entry == null) {

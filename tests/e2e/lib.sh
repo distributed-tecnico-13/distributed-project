@@ -8,6 +8,11 @@ E2E_LOG_DIR="${E2E_LOG_DIR:-$REPO_ROOT/logs/e2e/$E2E_RUN_ID}"
 BASE_PORT="${DAD_E2E_BASE_PORT:-}"
 E2E_SCHEDULE="${DAD_E2E_SCHEDULE:-A}"
 SERVER_PIDS=()
+if [[ "$E2E_SCHEDULE" == "B" ]]; then
+    E2E_SERVERS=(0 1 2 3 4)
+else
+    E2E_SERVERS=(0 1 2)
+fi
 
 fail() {
     echo "E2E FAIL: $*" >&2
@@ -57,7 +62,7 @@ wait_for_port() {
 ports_free() {
     local base="$1"
     local offset
-    for offset in 0 1 2; do
+    for offset in "${E2E_SERVERS[@]}"; do
         if port_open $((base + offset)); then
             return 1
         fi
@@ -72,7 +77,7 @@ ephemeral_floor() {
     echo "$low"
 }
 
-# Three consecutive ports, all strictly below the kernel ephemeral range, so a
+# Consecutive ports, all strictly below the kernel ephemeral range, so a
 # replica cannot lose its listen port to an outbound connection.
 choose_base_port() {
     if [[ -n "$BASE_PORT" ]]; then
@@ -80,8 +85,8 @@ choose_base_port() {
     fi
     local floor max start candidate
     floor="$(ephemeral_floor)"
-    max=$((floor - 3))
-    (( max > 10000 )) || fail "ephemeral range starts too low ($floor) to place three server ports"
+    max=$((floor - ${#E2E_SERVERS[@]}))
+    (( max > 10000 )) || fail "ephemeral range starts too low ($floor) to place server ports"
     start=$((10000 + ($$ % (max - 10000))))
     for ((candidate = start; candidate <= max; candidate++)); do
         if ports_free "$candidate"; then
@@ -95,7 +100,7 @@ choose_base_port() {
             return
         fi
     done
-    fail "no three consecutive free ports below the ephemeral range ($floor)"
+    fail "no consecutive free ports below the ephemeral range ($floor)"
 }
 
 wait_until_server_started() {
@@ -132,7 +137,7 @@ start_cluster() {
     echo "[e2e] logs: $E2E_LOG_DIR"
     echo "[e2e] base port: $BASE_PORT"
     local id
-    for id in 0 1 2; do
+    for id in "${E2E_SERVERS[@]}"; do
         (
             cd "$REPO_ROOT/src/server"
             # Line-buffer Maven so a startup failure reaches the log before we kill it.
@@ -144,7 +149,7 @@ start_cluster() {
         ) >"$E2E_LOG_DIR/server-$id.log" 2>&1 &
         SERVER_PIDS[$id]=$!
     done
-    for id in 0 1 2; do
+    for id in "${E2E_SERVERS[@]}"; do
         if ! wait_until_server_started "$id"; then
             release_server_output "$id"
             echo "--- $E2E_LOG_DIR/server-$id.log ---" >&2
@@ -152,7 +157,7 @@ start_cluster() {
             fail "server $id did not log 'Server started' on port $((BASE_PORT + id))"
         fi
     done
-    echo "[e2e] all three servers are listening"
+    echo "[e2e] all ${#E2E_SERVERS[@]} servers are listening"
 }
 
 cleanup_cluster() {
@@ -244,7 +249,7 @@ assert_slot_accepted_in_ballot() {
     local ballot="$2"
     local value="$3"
     local id
-    for id in 0 1 2; do
+    for id in "${E2E_SERVERS[@]}"; do
         if grep -A4 "notify learners for entry ${entry} with timestamp ${ballot} " \
             "$E2E_LOG_DIR/server-$id.log" | grep -q "value: ${value}"; then
             return 0

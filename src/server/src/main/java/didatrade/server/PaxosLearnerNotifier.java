@@ -12,6 +12,11 @@ final class PaxosLearnerNotifier {
 
 	static void notifyAccepted (
 			DidaTradeServerState state, int instance, int ballot, int value) {
+		notifyAccepted (state, instance, ballot, value, false);
+	}
+
+	static void notifyAccepted (
+			DidaTradeServerState state, int instance, int ballot, int value, boolean classic) {
 		Context context = Context.current ().fork ();
 		context.run ( () -> {
 			List<Integer> learners = state.scheduler.learners (ballot);
@@ -20,6 +25,7 @@ final class PaxosLearnerNotifier {
 					.setValue (value)
 					.setBallot (ballot)
 					.setServerid (state.my_id)
+					.setClassic (classic)
 					.build ();
 
 			System.out.println ("Paxos acceptor: going to notify learners for entry "

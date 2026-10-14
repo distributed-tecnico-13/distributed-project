@@ -9,15 +9,25 @@ import org.junit.jupiter.api.Test;
 class PaxosReproposalTest {
 
 	@Test
-	void decidedSlotCanBeReproposedOncePerNewBallot () {
+	void decidedSlotRetriesFailedPhaseTwoButNotSuccessfulReproposal () {
 		PaxosInstance entry = new PaxosInstance (3);
 		assertTrue (entry.decide (4, 101));
 
 		assertTrue (entry.tryClaim (5, 0));
 		assertEquals (101, entry.getValueToPropose ());
 		assertEquals (101, entry.phaseTwoValueFor (5, entry.getValueToPropose ()));
-		entry.releaseClaim (5, 0);
+		assertFalse (entry.tryClaim (5, Long.MAX_VALUE)); // another worker cannot claim it
 
+		// Phase 2 failed before a quorum: release the worker but preserve the value.
+		long retry_at = entry.releaseClaim (5, 1_000_000_000L);
+		assertFalse (entry.tryClaim (5, retry_at - 1)); // backoff still active
+		assertTrue (entry.tryClaim (5, retry_at));      // same-ballot retry allowed
+		assertEquals (101, entry.phaseTwoValueFor (5, 999)); // value cannot change
+
+		// Successful higher-ballot reproposal must not be repeated in this ballot.
+		assertFalse (entry.decide (5, 101)); // slot was already decided
+		assertEquals (5, entry.getAcceptBallot ());
+		entry.releaseClaim (5, 0);
 		assertFalse (entry.tryClaim (5, Long.MAX_VALUE));
 		assertTrue (entry.tryClaim (6, Long.MAX_VALUE));
 		assertEquals (101, entry.phaseTwoValueFor (6, entry.getValueToPropose ()));

@@ -107,13 +107,14 @@ class FastPaxosServerStateTest {
 	}
 
 	@Test
-	void staleOrFutureOpenRequestIsRejected () {
+	void staleOpenRejectedButHigherBallotMayBeOpened () {
 		DidaTradeServerState state = state ('B', 1);
 		state.setCurrentBallot (2);
 
 		assertFalse (state.openFastRound (1));
-		assertFalse (state.openFastRound (3));
-		assertFalse (state.getFastPaxosMode ());
+		assertTrue (state.openFastRound (3));
+		assertTrue (state.getFastPaxosMode ());
+		assertEquals (3, state.getCurrentBallot ());
 	}
 
 	@Test

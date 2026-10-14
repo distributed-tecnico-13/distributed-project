@@ -13,13 +13,18 @@ assert_contains "$CLIENT_LOG" 'Exiting\.\.\.'
 assert_not_contains "$CLIENT_LOG" 'Panic\.\.\.error'
 
 # All reachable acceptors should have entered the initial Fast round and voted locally.
-for id in 0 1 2; do
-    assert_contains "$E2E_LOG_DIR/server-$id.log" \
-        'notify learners for entry 0 with timestamp 0 '
+votes=0
+for id in 0 1 2 3 4; do
+    if grep -q 'notify learners for entry 0 with timestamp 0 ' "$E2E_LOG_DIR/server-$id.log"; then
+        votes=$((votes + 1))
+    fi
 done
+(( votes >= 4 )) || fail "Fast ballot 0 did not collect four acceptor votes"
 
 sleep 2
 assert_same_observable_state 0 1
 assert_same_observable_state 0 2
+assert_same_observable_state 0 3
+assert_same_observable_state 0 4
 
 echo "PASS: Schedule B ballot 0 used the Fast path and all replicas converged"

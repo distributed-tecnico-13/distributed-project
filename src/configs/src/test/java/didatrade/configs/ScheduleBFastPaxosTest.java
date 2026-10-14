@@ -24,16 +24,20 @@ class ScheduleBFastPaxosTest {
 	}
 
 	@Test
-	void everyBallotUsesMajorityQuorumTwo () {
+	void everyBallotUsesSeparateQuorums () {
 		ConfigurationScheduler scheduler = new ConfigurationScheduler ('B');
-		for (int ballot = 0; ballot < 12; ballot++)
-			assertEquals (2, scheduler.quorum (ballot));
+		for (int ballot = 0; ballot < 12; ballot++) {
+			assertEquals (3, scheduler.quorum (ballot));
+			assertEquals (3, scheduler.classicQuorum (ballot));
+			assertEquals (3, scheduler.recoveryQuorum (ballot));
+			assertEquals (4, scheduler.fastQuorum (ballot));
+		}
 	}
 
 	@Test
 	void everyReplicaIsAnAcceptorAndLearner () {
 		ConfigurationScheduler scheduler = new ConfigurationScheduler ('B');
-		List<Integer> replicas = List.of (0, 1, 2);
+		List<Integer> replicas = List.of (0, 1, 2, 3, 4);
 		for (int ballot = 0; ballot < 6; ballot++) {
 			assertEquals (replicas, scheduler.acceptors (ballot));
 			assertEquals (replicas, scheduler.learners (ballot));

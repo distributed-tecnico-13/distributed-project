@@ -13,26 +13,23 @@ import didatrade.DidaTradePaxos;
 class FastRoundResponseProcessorTest {
 
 	@Test
-	void quorumMarksRoundAcceptedButDoesNotStopRemainingOpenRequests () {
+	void fastQuorumTerminatesOpeningWithoutWaitingForLastAcceptor () {
 		FastRoundResponseProcessor processor = new FastRoundResponseProcessor (2, List.of (0, 1, 2));
 		ArrayList<DidaTradePaxos.OpenFastReply> responses = new ArrayList<> ();
 
 		assertFalse (processor.onNext (responses, acceptedReply (0)));
-		assertFalse (processor.onNext (responses, acceptedReply (1)));
+		assertTrue (processor.onNext (responses, acceptedReply (1)));
 		assertTrue (processor.getAccepted ());
 	}
 
 	@Test
-	void higherBallotRejectionAbortsEvenAfterAnOpeningQuorum () {
+	void higherBallotRejectionBeforeQuorumAbortsOpening () {
 		FastRoundResponseProcessor processor = new FastRoundResponseProcessor (2, List.of (0, 1, 2));
 		ArrayList<DidaTradePaxos.OpenFastReply> responses = new ArrayList<> ();
 
 		assertFalse (processor.onNext (responses, acceptedReply (0)));
-		assertFalse (processor.onNext (responses, acceptedReply (1)));
-		assertTrue (processor.getAccepted ());
-
 		DidaTradePaxos.OpenFastReply rejection = DidaTradePaxos.OpenFastReply.newBuilder ()
-				.setServerid (2)
+				.setServerid (1)
 				.setBallot (0)
 				.setAccepted (false)
 				.setMaxballot (1)
@@ -67,7 +64,7 @@ class FastRoundResponseProcessorTest {
 		ArrayList<DidaTradePaxos.OpenFastReply> responses = new ArrayList<> ();
 
 		assertFalse (processor.onNext (responses, acceptedReply (0)));
-		assertFalse (processor.onNext (responses, acceptedReply (1)));
+		assertTrue (processor.onNext (responses, acceptedReply (1)));
 		assertTrue (processor.getAccepted ());
 
 		DidaTradePaxos.OpenFastReply rejection = DidaTradePaxos.OpenFastReply.newBuilder ()

@@ -26,5 +26,7 @@ assert_contains "$E2E_LOG_DIR/client-after-crash.log" 'Exiting\.\.\.'
 assert_not_contains "$E2E_LOG_DIR/client-after-crash.log" 'Panic\.\.\.error'
 sleep 2
 assert_same_observable_state 1 2
+assert_same_observable_state 1 3
+assert_same_observable_state 1 4
 
 echo "PASS: a Schedule B Fast round kept progressing after rotation and one acceptor crash"

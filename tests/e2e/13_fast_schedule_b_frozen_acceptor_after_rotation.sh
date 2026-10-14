@@ -27,5 +27,7 @@ run_app 93 "add 993 1993 100\nexit\n" "$E2E_LOG_DIR/client-after-unfreeze.log"
 request_dump "$E2E_LOG_DIR/client-dump.log"
 assert_same_observable_state 0 1
 assert_same_observable_state 0 2
+assert_same_observable_state 0 3
+assert_same_observable_state 0 4
 
 echo "PASS: Schedule B Fast ballot 1 progressed with one frozen acceptor and converged after recovery"

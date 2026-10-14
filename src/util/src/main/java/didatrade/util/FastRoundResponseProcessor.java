@@ -53,10 +53,7 @@ public class FastRoundResponseProcessor extends GenericResponseProcessor<DidaTra
 		if (this.accepted_count >= this.quorum)
 			this.accepted = true;
 
-		// Do not finish the collector at the first quorum. The leader sends openfast to
-		// every acceptor and waits for each RPC to either reply or hit its deadline. This
-		// makes every reachable acceptor enter the Fast round, so losing one member of
-		// the opening quorum later does not strand the remaining replica outside it.
-		return false;
+		// All openfast RPCs are sent, but a Fast quorum is sufficient to proceed.
+		return this.accepted;
 	}
 }

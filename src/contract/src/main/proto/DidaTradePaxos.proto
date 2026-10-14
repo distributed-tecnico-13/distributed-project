@@ -38,6 +38,7 @@ message PhaseTwoReply {
 
 message OpenFastRequest {
   int32 ballot = 1;
+  int32 firstfastinstance = 2;
 }
 
 message OpenFastReply {
@@ -52,6 +53,7 @@ message LearnRequest {
   int32 ballot     = 2;
   int32 value      = 3;
   int32 serverid   = 4;
+  bool  classic    = 5; // Phase 2 acceptance versus direct Fast acceptance.
 }
 
 message LearnReply {

@@ -192,6 +192,32 @@ class PaxosPipelineTest {
 		}
 	}
 
+	@Test
+	void adoptedPhaseOneValueIsNotReportedAsLocallyAccepted() {
+		PaxosLog log = new PaxosLog();
+
+		log.adopt(4, 123);
+
+		assertFalse(log.getEntry(4).isAccepted());
+		assertEquals(0, log.getAcceptedEntries().length);
+	}
+
+	@Test
+	void adoptDoesNotOverwriteActualAcceptedHistory() {
+		PaxosLog log = new PaxosLog();
+		PaxosInstance entry = log.testAndSetEntry(4);
+
+		entry.accept(2, 111);
+
+		log.adopt(4, 222);
+
+		PaxosInstance.AcceptedSnapshot accepted =
+			entry.getAcceptedSnapshot();
+
+		assertEquals(111, accepted.value);
+		assertEquals(2, accepted.valballot);
+	}
+
 	private static void await (CountDownLatch latch) {
 		try {
 			latch.await ();

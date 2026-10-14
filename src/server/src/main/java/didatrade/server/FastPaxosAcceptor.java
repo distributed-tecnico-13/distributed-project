@@ -1,7 +1,7 @@
 package didatrade.server;
 
-final class FastPaxosPath {
-	private FastPaxosPath() {
+final class FastPaxosAcceptor {
+	private FastPaxosAcceptor() {
 	}
 
 	static boolean tryAcceptRequest (DidaTradeServerState state, int request_id) {
@@ -10,12 +10,14 @@ final class FastPaxosPath {
 			return false;
 		PaxosLearnerNotifier.notifyAccepted (
 				state, vote.instance, vote.ballot, request_id);
+		if (state.main_loop != null)
+			state.main_loop.wakeup ();
 		return true;
 	}
 
 	static int acceptPendingRequests (DidaTradeServerState state) {
 		int accepted = 0;
-		for (int request_id : state.req_history.pendingRequestIds ()) {
+		for (int request_id : state.req_history.getPendingRequestIds ()) {
 			if (tryAcceptRequest (state, request_id))
 				accepted++;
 		}

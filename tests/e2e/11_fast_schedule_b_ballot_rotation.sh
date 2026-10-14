@@ -28,5 +28,7 @@ assert_slot_accepted_in_ballot 2 2 172
 request_dump "$E2E_LOG_DIR/client-dump.log"
 assert_same_observable_state 0 1
 assert_same_observable_state 0 2
+assert_same_observable_state 0 3
+assert_same_observable_state 0 4
 
 echo "PASS: Schedule B remained live and Fast across leader rotations 0 -> 1 -> 2"
