@@ -24,6 +24,7 @@ public class DidaTradePaxosServiceImpl extends DidaTradePaxosServiceGrpc.DidaTra
 		this.server_state.applyDebugState ();
 
 		DidaTradeServerState.PhaseOneState phase_one;
+		boolean membership_transferred;
 		List<DidaTradePaxos.PhaseOneResponseLogObject> accepted_snapshots;
 		synchronized (this.server_state) {
 			// Snapshot *values*, not mutable instance references, atomically with the promise.
@@ -33,9 +34,10 @@ public class DidaTradePaxosServiceImpl extends DidaTradePaxosServiceGrpc.DidaTra
 						return DidaTradePaxos.PhaseOneResponseLogObject.newBuilder ()
 								.setInstance (entry.getInstanceNb ())
 								.setValue (snapshot.value)
-								.setValballot (snapshot.valballot).build ();
+								.setValballot (snapshot.valballot).setClassic (snapshot.classic).build ();
 					}).toList ();
 			phase_one = this.server_state.processPhaseOne (ballot);
+			membership_transferred = this.server_state.membershipTransferred ();
 		}
 
 		DidaTradePaxos.PhaseOneReply.Builder response_builder = DidaTradePaxos.PhaseOneReply.newBuilder ();
@@ -44,6 +46,12 @@ public class DidaTradePaxosServiceImpl extends DidaTradePaxosServiceGrpc.DidaTra
 		response_builder.setAccepted (phase_one.accepted);
 		response_builder.setMaxballot (phase_one.maxballot);
 		response_builder.addAllResponseLogObjects (accepted_snapshots);
+		response_builder.setMembershiptransferred (membership_transferred);
+		for (DidaTradePaxos.PhaseOneResponseLogObject entry : accepted_snapshots) {
+			RequestRecord record = this.server_state.req_history.getIfExists (entry.getValue ());
+			if (record != null)
+				response_builder.addCommands (CommandTransfer.encode (record));
+		}
 
 		DidaTradePaxos.PhaseOneReply response = response_builder.build ();
 
@@ -63,6 +71,26 @@ public class DidaTradePaxosServiceImpl extends DidaTradePaxosServiceGrpc.DidaTra
 		this.server_state.applyDebugState ();
 
 		int value = request.getValue ();
+		if (!this.server_state.scheduler.validBallot (ballot)) {
+			responseObserver.onError (io.grpc.Status.INVALID_ARGUMENT.asRuntimeException ());
+			return;
+		}
+		if (request.hasCommand ()) {
+			try {
+				if (request.getCommand ().getRequestid () != value)
+					throw new IllegalArgumentException ("Payload/id mismatch");
+				this.server_state.req_history.installIfAbsent (value, CommandTransfer.decode (request.getCommand ()));
+			} catch (IllegalArgumentException e) {
+				responseObserver.onError (io.grpc.Status.INVALID_ARGUMENT.withDescription (e.getMessage ()).asRuntimeException ());
+				return;
+			}
+		}
+		if (this.server_state.scheduler.dynamicMembership ()
+				&& (request.getSenderid () != this.server_state.scheduler.leader (ballot)
+						|| (value >= 0 && this.server_state.req_history.getIfExists (value) == null))) {
+			responseObserver.onError (io.grpc.Status.FAILED_PRECONDITION.asRuntimeException ());
+			return;
+		}
 		PaxosInstance entry = this.server_state.paxos_log.testAndSetEntry (instance);
 		DidaTradeServerState.PhaseTwoState phase_two = this.server_state.processPhaseTwo (entry, ballot, value);
 
@@ -84,6 +112,19 @@ public class DidaTradePaxosServiceImpl extends DidaTradePaxosServiceGrpc.DidaTra
 		if (phase_two.accepted)
 			PaxosLearnerNotifier.notifyAccepted (this.server_state, instance, ballot, value, true);
 
+	}
+
+	@Override
+	public void installstate (DidaTradePaxos.InstallStateRequest request,
+			StreamObserver<DidaTradePaxos.InstallStateReply> observer) {
+		this.server_state.applyDebugState ();
+		boolean accepted = StateTransfer.install (this.server_state, request);
+		observer.onNext (DidaTradePaxos.InstallStateReply.newBuilder ()
+				.setServerid (this.server_state.my_id).setAccepted (accepted)
+				.setMaxballot (this.server_state.getCurrentBallot ()).build ());
+		observer.onCompleted ();
+		if (accepted && this.server_state.main_loop != null)
+			this.server_state.main_loop.wakeup ();
 	}
 
 	@Override
@@ -118,7 +159,17 @@ public class DidaTradePaxosServiceImpl extends DidaTradePaxosServiceGrpc.DidaTra
 
 		this.server_state.applyDebugState ();
 
-		if (this.server_state.scheduler.isacceptor (server_id, ballot)) {
+		if (this.server_state.scheduler.validBallot (ballot) && this.server_state.scheduler.isacceptor (server_id, ballot)) {
+			if (request.hasCommand ()) {
+				try {
+					if (request.getCommand ().getRequestid () != value)
+						throw new IllegalArgumentException ("Payload/id mismatch");
+					this.server_state.req_history.installIfAbsent (value, CommandTransfer.decode (request.getCommand ()));
+				} catch (IllegalArgumentException e) {
+					responseObserver.onError (io.grpc.Status.INVALID_ARGUMENT.asRuntimeException ());
+					return;
+				}
+			}
 			PaxosInstance entry = this.server_state.paxos_log.testAndSetEntry (instance);
 			this.server_state.setCurrentBallot (ballot);
 			// Classic Phase 2 and direct Fast accepts have different quorum sizes.

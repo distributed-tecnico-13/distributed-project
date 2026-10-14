@@ -23,9 +23,17 @@ public class DidaTradeMasterServiceImpl extends DidaTradeMasterServiceGrpc.DidaT
 		// for debug purposes
 		System.out.println ("Current ballot = " + this.server_state.getCurrentBallot () + " new ballot = " + new_ballot + " completed ballot = " + completed_ballot);
 
-		this.server_state.setCompletedBallot (completed_ballot);
+		if (!this.server_state.scheduler.validBallot (new_ballot)
+				|| this.server_state.scheduler.leader (new_ballot) != this.server_state.my_id) {
+			responseObserver.onError (io.grpc.Status.INVALID_ARGUMENT.withDescription ("Send a valid ballot to its leader").asRuntimeException ());
+			return;
+		}
+		if (!this.server_state.scheduler.dynamicMembership ())
+			this.server_state.setCompletedBallot (completed_ballot);
 
-		if (new_ballot > this.server_state.getCurrentBallot ()) {
+		if (new_ballot > this.server_state.getCurrentBallot ()
+				|| (this.server_state.scheduler.dynamicMembership () && new_ballot == this.server_state.getCurrentBallot ()
+						&& this.server_state.getCompletedBallot () < new_ballot)) {
 			this.server_state.setCurrentBallot (new_ballot);
 
 			this.server_state.main_loop.wakeup ();
@@ -33,6 +41,10 @@ public class DidaTradeMasterServiceImpl extends DidaTradeMasterServiceGrpc.DidaT
 			completed_ballot = this.server_state.waitForCompletedBallot (new_ballot);
 		} else {
 			completed_ballot = this.server_state.getCompletedBallot ();
+		}
+		if (completed_ballot < new_ballot && this.server_state.getCurrentBallot () > new_ballot) {
+			responseObserver.onError (io.grpc.Status.ABORTED.withDescription ("Ballot superseded before completion").asRuntimeException ());
+			return;
 		}
 
 		DidaTradeMaster.NewBallotReply.Builder response_builder = DidaTradeMaster.NewBallotReply.newBuilder ();
@@ -54,11 +66,13 @@ public class DidaTradeMasterServiceImpl extends DidaTradeMasterServiceGrpc.DidaT
 		// for debug purposes
 		System.out.println ("Current ballot = " + this.server_state.getCurrentBallot () + " activated ballot = " + completed_ballot);
 
-		// do stuff
+		// Ballot initiation performs the safe handoff automatically. Activation
+		// acknowledges readiness only for this replica's current leader ballot.
 
 		DidaTradeMaster.ActivateReply.Builder response_builder = DidaTradeMaster.ActivateReply.newBuilder ();
 		response_builder.setReqid (request_id);
-		response_builder.setAck (true);
+		response_builder.setAck (this.server_state.canProposeFor (completed_ballot)
+				&& completed_ballot <= this.server_state.getCompletedBallot ());
 
 		DidaTradeMaster.ActivateReply response = response_builder.build ();
 		responseObserver.onNext (response);

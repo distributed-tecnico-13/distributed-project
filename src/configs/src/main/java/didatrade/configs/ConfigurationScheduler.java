@@ -15,7 +15,7 @@ public class ConfigurationScheduler {
 	public ConfigurationScheduler(char option) {
 		if (option == 'C')
 			s = new ScheduleC ();
-		if (option == 'B')
+		else if (option == 'B')
 			s = new ScheduleB ();
 		else
 			s = new ScheduleA ();
@@ -28,6 +28,14 @@ public class ConfigurationScheduler {
 			s = new ScheduleB ();
 		else if (option == 'C')
 			s = new ScheduleC ();
+	}
+
+	public boolean dynamicMembership () {
+		return this.s instanceof ScheduleC;
+	}
+
+	public boolean validBallot (int ballot) {
+		return ballot >= 0 && (!this.dynamicMembership () || ballot < 5);
 	}
 
 	public List<Integer> learners (int ballot) {

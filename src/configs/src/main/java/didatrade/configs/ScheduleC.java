@@ -58,10 +58,7 @@ public class ScheduleC extends Schedule {
 	}
 
 	public Integer quorum (int ballot) {
-		if (ballot < 2)
-			return 2;
-		else
-			return 3;
+		return 3;
 	}
 
 	public boolean fastpaxos (int ballot) {

@@ -5,6 +5,11 @@ final class FastPaxosAcceptor {
 	}
 
 	static boolean tryAcceptRequest (DidaTradeServerState state, int request_id) {
+		if (state.paxos_log.hasDecidedRequest (request_id)) {
+			if (state.main_loop != null)
+				state.main_loop.wakeup ();
+			return false;
+		}
 		DidaTradeServerState.FastVoteState vote = state.processFastVote (request_id);
 		if (!vote.accepted)
 			return false;

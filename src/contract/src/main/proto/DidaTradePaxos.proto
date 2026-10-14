@@ -4,6 +4,29 @@
 syntax = "proto3";
 package didatrade;
 
+message CommandPayload {
+  int32 requestid = 1;
+  string action = 2;
+  int32 userid = 3;
+  int32 quantity = 4;
+  int32 stock = 5;
+}
+
+// Only the configured leader sends this after confirming the prefix by Phase 2.
+message InstallStateRequest {
+  int32 ballot = 1;
+  int32 senderid = 2;
+  int32 throughinstance = 3;
+  repeated PhaseOneResponseLogObject entries = 4;
+  repeated CommandPayload commands = 5;
+}
+
+message InstallStateReply {
+  int32 serverid = 1;
+  bool accepted = 2;
+  int32 maxballot = 3;
+}
+
 message PhaseOneRequest {
   int32 requestballot	= 1;
 }
@@ -14,18 +37,23 @@ message PhaseOneReply {
   bool  accepted 	= 3;
   int32 maxballot       = 4;
   repeated PhaseOneResponseLogObject responseLogObjects = 5;
+  bool membershiptransferred = 6;
+  repeated CommandPayload commands = 7;
 }
 
 message PhaseOneResponseLogObject {
   int32 instance        = 1;
   int32 value           = 2;
   int32 valballot       = 3;
+  bool classic = 4;
 }
 
 message PhaseTwoRequest {
   int32 instance        = 1;
   int32 requestballot   = 2;
   int32 value           = 3;
+  CommandPayload command = 4;
+  int32 senderid = 5;
 }
 
 message PhaseTwoReply {
@@ -54,6 +82,7 @@ message LearnRequest {
   int32 value      = 3;
   int32 serverid   = 4;
   bool  classic    = 5; // Phase 2 acceptance versus direct Fast acceptance.
+  CommandPayload command = 6;
 }
 
 message LearnReply {
@@ -62,6 +91,7 @@ message LearnReply {
 }
 
 service DidaTradePaxosService {
+  rpc installstate (InstallStateRequest) returns (InstallStateReply);
   rpc phaseone (PhaseOneRequest) returns (PhaseOneReply);
   rpc phasetwo (PhaseTwoRequest) returns (PhaseTwoReply);
   rpc openfast (OpenFastRequest) returns (OpenFastReply);
