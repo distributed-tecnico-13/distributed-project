@@ -154,7 +154,6 @@ public final class DidaTradeServerState {
 
 	// Test-only construction avoids starting RPC channels and the MainLoop thread.
 	DidaTradeServerState() {
-		this.req_history = new RequestHistory ();
 		this.current_ballot = 0;
 		this.debug_state = new DebugState ();
 		this.last_executed_instance = -1;
