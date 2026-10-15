@@ -12,7 +12,8 @@ class StateTransferTest {
 	@Test
 	void repeatedInstallationPreservesWaitersAndDoesNotRepeatTrade () {
 		DidaTradeServerState s = state (5);
-		RequestRecord waiter = s.req_history.installIfAbsent (101, new DidaTradeCommand (DidaTradeAction.ADDUSER, 77, 100, 10));
+		RequestRecord waiter = receive (s, 101, new DidaTradeCommand (DidaTradeAction.ADDUSER, 77, 100, 10));
+		receive (s, 201, new DidaTradeCommand (DidaTradeAction.BUY, 77, 50));
 		assertTrue (StateTransfer.install (s, prefix ()));
 		assertSame (waiter, s.req_history.getIfExists (101));
 		assertTrue (s.membershipTransferred ());
@@ -24,11 +25,8 @@ class StateTransferTest {
 		assertEquals (50, s.trade_manager.balance (77));
 	}
 	@Test
-	void partialOrStaleInstallationCannotPublishTheMarker () {
+	void staleInstallationCannotPublishTheMarker () {
 		DidaTradeServerState s = state (5);
-		assertFalse (StateTransfer.install (s, prefix ().toBuilder ().clearCommands ().build ()));
-		assertFalse (s.membershipTransferred ());
-		assertEquals (0, s.paxos_log.length ());
 		s.setCurrentBallot (3);
 		assertFalse (StateTransfer.install (s, prefix ()));
 		assertFalse (s.membershipTransferred ());
@@ -36,20 +34,14 @@ class StateTransferTest {
 	@Test
 	void retiredAcceptorCanPromiseAndLearnButCannotVote () {
 		DidaTradeServerState s = state (0);
+		receive (s, 101, new DidaTradeCommand (DidaTradeAction.ADDUSER, 77, 100, 10));
+		receive (s, 201, new DidaTradeCommand (DidaTradeAction.BUY, 77, 50));
 		assertTrue (s.processPhaseOne (2).accepted);
 		assertFalse (s.processPhaseTwo (s.paxos_log.testAndSetEntry (0), 2, 101).accepted);
 		assertTrue (StateTransfer.install (s, prefix ()));
 		assertEquals (2, new OrderedPaxosExecutor (s).drain ());
 		assertEquals (50, s.trade_manager.balance (77));
 		assertFalse (s.paxos_log.getEntry (0).isAccepted ());
-	}
-	@Test
-	void conflictingPayloadDoesNotReplaceAnExistingRequest () {
-		DidaTradeServerState s = state (5);
-		RequestRecord existing = s.req_history.installIfAbsent (101, new DidaTradeCommand (DidaTradeAction.ADDUSER, 77, 999, 10));
-		assertFalse (StateTransfer.install (s, prefix ()));
-		assertSame (existing, s.req_history.getIfExists (101));
-		assertFalse (s.membershipTransferred ());
 	}
 	@Test
 	void incompleteAndConflictingPrefixesAreRejectedBeforeInstallation () {
@@ -76,7 +68,7 @@ class StateTransferTest {
 	@Test
 	void delayedTransferPreservesVotesFromItsOwnBallot () {
 		DidaTradeServerState s = state (3);
-		s.req_history.installIfAbsent (301, new DidaTradeCommand (DidaTradeAction.ADDUSER, 88, 100, 10));
+		receive (s, 301, new DidaTradeCommand (DidaTradeAction.ADDUSER, 88, 100, 10));
 		DidaTradePaxos.InstallStateRequest empty = DidaTradePaxos.InstallStateRequest.newBuilder ()
 				.setBallot (2).setSenderid (3).setThroughinstance (-1).build ();
 		assertTrue (StateTransfer.install (s, empty));
@@ -133,8 +125,12 @@ class StateTransferTest {
 	static DidaTradePaxos.InstallStateRequest prefix () {
 		return DidaTradePaxos.InstallStateRequest.newBuilder ().setBallot (2).setSenderid (3).setThroughinstance (1)
 				.addEntries (DidaTradePaxos.PhaseOneResponseLogObject.newBuilder ().setInstance (0).setValue (101).setValballot (2))
-				.addEntries (DidaTradePaxos.PhaseOneResponseLogObject.newBuilder ().setInstance (1).setValue (201).setValballot (2))
-				.addCommands (DidaTradePaxos.CommandPayload.newBuilder ().setRequestid (101).setAction ("ADDUSER").setUserid (77).setQuantity (100).setStock (10))
-				.addCommands (DidaTradePaxos.CommandPayload.newBuilder ().setRequestid (201).setAction ("BUY").setUserid (77).setQuantity (50)).build ();
+				.addEntries (DidaTradePaxos.PhaseOneResponseLogObject.newBuilder ().setInstance (1).setValue (201).setValballot (2)).build ();
+	}
+	// Clients send every request to every replica; Paxos only orders request ids.
+	static RequestRecord receive (DidaTradeServerState s, int id, DidaTradeCommand command) {
+		RequestRecord record = new RequestRecord (id, command);
+		s.req_history.addToPending (id, record);
+		return record;
 	}
 }

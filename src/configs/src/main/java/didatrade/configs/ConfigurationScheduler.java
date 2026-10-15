@@ -31,11 +31,18 @@ public class ConfigurationScheduler {
 	}
 
 	public boolean dynamicMembership () {
-		return this.s instanceof ScheduleC;
+		return s.dynamicMembership ();
 	}
 
 	public boolean validBallot (int ballot) {
-		return ballot >= 0 && (!this.dynamicMembership () || ballot < 5);
+		return s.validBallot (ballot);
+	}
+
+	// First ballot of the acceptor group that is active in the given ballot.
+	public int membershipStart (int ballot) {
+		while (ballot > 0 && new HashSet<> (s.acceptors (ballot - 1)).equals (new HashSet<> (s.acceptors (ballot))))
+			ballot--;
+		return ballot;
 	}
 
 	public List<Integer> learners (int ballot) {

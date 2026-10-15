@@ -33,4 +33,13 @@ public abstract class Schedule {
 	}
 
 	abstract boolean fastpaxos (int ballot);
+
+	// Schedules whose acceptor set changes need state transfer between groups.
+	boolean dynamicMembership () {
+		return false;
+	}
+
+	boolean validBallot (int ballot) {
+		return ballot >= 0;
+	}
 }

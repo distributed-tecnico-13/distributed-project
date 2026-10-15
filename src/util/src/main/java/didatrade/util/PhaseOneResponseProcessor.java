@@ -17,8 +17,8 @@ public class PhaseOneResponseProcessor
 
 	private final ConfigurationScheduler scheduler;
 	private final List<Integer> required_ballots;
+	private final int membership_start;
 	private boolean membership_transferred;
-	private final Map<Integer, DidaTradePaxos.CommandPayload> commands = new HashMap<> ();
 	private final Set<Integer> acceptors;
 	private final Set<Integer> responders;
 
@@ -34,6 +34,7 @@ public class PhaseOneResponseProcessor
 
 	public PhaseOneResponseProcessor(ConfigurationScheduler s, int h, int low) {
 		this.scheduler = s;
+		this.membership_start = s.membershipStart (h);
 		this.required_ballots = new ArrayList<> ();
 		this.acceptors = new HashSet<> ();
 		Set<Set<Integer>> groups = new HashSet<> ();
@@ -51,9 +52,6 @@ public class PhaseOneResponseProcessor
 
 	public synchronized boolean membershipTransferred () {
 		return this.membership_transferred;
-	}
-	public synchronized DidaTradePaxos.CommandPayload payloadFor (int id) {
-		return this.commands.get (id);
 	}
 
 	public boolean getAccepted () {
@@ -102,14 +100,9 @@ public class PhaseOneResponseProcessor
 		}
 
 		// A new acceptor's atomic snapshot includes the entire transferred
-		// prefix at ballot >= 2. A retired learner's marker carries no such votes.
-		this.membership_transferred |= this.scheduler.dynamicMembership ()
-				&& this.scheduler.isacceptor (server_id, 2) && last_response.getMembershiptransferred ();
-		for (DidaTradePaxos.CommandPayload command : last_response.getCommandsList ()) {
-			DidaTradePaxos.CommandPayload previous = this.commands.putIfAbsent (command.getRequestid (), command);
-			if (previous != null && !previous.equals (command))
-				return true;
-		}
+		// prefix at ballot >= membership_start. A retired learner's marker carries no such votes.
+		this.membership_transferred |= this.membership_start > 0
+				&& this.scheduler.isacceptor (server_id, this.membership_start) && last_response.getMembershiptransferred ();
 		for (DidaTradePaxos.PhaseOneResponseLogObject response : last_response.getResponseLogObjectsList ()) {
 			if (!this.scheduler.isacceptor (server_id, response.getValballot ()))
 				continue;
@@ -140,14 +133,11 @@ public class PhaseOneResponseProcessor
 		Map<Integer, InstanceResponse> resolved = new HashMap<> ();
 		for (Map.Entry<Integer, AcceptedResponseObserver> instance : this.observations_per_instance.entrySet ()) {
 			// With that certificate, any slot seen ONLY in the old configuration
-			// is an unchosen tail; every old decision is also present at >= 2.
-			if (this.membership_transferred && instance.getValue ().ballot < 2)
+			// is an unchosen tail; every old decision is also present at >= membership_start.
+			if (this.membership_transferred && instance.getValue ().ballot < this.membership_start)
 				continue;
 			InstanceResponse resolution = this.resolveInstance (instance.getValue ());
 			if (resolution == null)
-				return false;
-			if (this.scheduler.dynamicMembership () && resolution.getValue () >= 0
-					&& !this.commands.containsKey (resolution.getValue ()))
 				return false;
 			resolved.put (instance.getKey (), resolution);
 		}

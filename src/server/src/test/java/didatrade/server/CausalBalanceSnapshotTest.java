@@ -53,7 +53,7 @@ class CausalBalanceSnapshotTest {
 			assertEquals (1, snapshot.lastExecutedInstance ());
 			Future<DidaTradeServerState.BalanceResult> next = workers.submit ( () -> b.getBalance (snapshot.lastExecutedInstance (), 77));
 			assertThrows (TimeoutException.class, () -> next.get (100, TimeUnit.MILLISECONDS));
-			b.req_history.installIfAbsent (201, new DidaTradeCommand (DidaTradeAction.BUY, 77, 50));
+			StateTransferTest.receive (b, 201, new DidaTradeCommand (DidaTradeAction.BUY, 77, 50));
 			b.paxos_log.testAndSetEntry (1).decide (0, 201);
 			eb.drain ();
 			assertEquals (50, next.get (2, TimeUnit.SECONDS).balance ());
@@ -64,7 +64,7 @@ class CausalBalanceSnapshotTest {
 	}
 
 	private static void addUser (DidaTradeServerState s) {
-		s.req_history.installIfAbsent (101, new DidaTradeCommand (DidaTradeAction.ADDUSER, 77, 100, 10));
+		StateTransferTest.receive (s, 101, new DidaTradeCommand (DidaTradeAction.ADDUSER, 77, 100, 10));
 		s.paxos_log.testAndSetEntry (0).decide (0, 101);
 	}
 }

@@ -43,7 +43,7 @@ final class PaxosProposer {
 				acceptors, acceptors.size (), ballot, ballot);
 		if (!this.server_state.canProposeFor (ballot))
 			return false;
-		if (this.server_state.scheduler.dynamicMembership () && ballot >= 2 && !phase_one.membership_transferred) {
+		if (this.server_state.scheduler.membershipStart (ballot) > 0 && !phase_one.membership_transferred) {
 			// The new group alone may not resolve old Fast votes. Consult the old
 			// group even when this first attempt could not select a safe value.
 			acceptors = this.server_state.scheduler.acceptorsinrange (0, ballot);
@@ -51,8 +51,6 @@ final class PaxosProposer {
 		}
 		if (phase_one.aborted || !this.server_state.canProposeFor (ballot))
 			return false;
-		for (DidaTradePaxos.CommandPayload command : phase_one.payloads.values ())
-			this.server_state.req_history.installIfAbsent (command.getRequestid (), CommandTransfer.decode (command));
 
 		for (int instance : phase_one.instances ())
 			if (!this.server_state.paxos_log.adopt (instance, phase_one.commandFor (instance)))
@@ -152,17 +150,10 @@ final class PaxosProposer {
 		DidaTradePaxos.InstallStateRequest.Builder builder = DidaTradePaxos.InstallStateRequest.newBuilder ()
 				.setBallot (ballot).setSenderid (this.server_state.my_id)
 				.setThroughinstance (this.recoveryLimit (ballot) - 1);
-		Set<Integer> ids = new java.util.HashSet<> ();
 		for (int slot = 0; slot < this.recoveryLimit (ballot); slot++) {
 			int value = this.server_state.paxos_log.getEntry (slot).getCommandId ();
 			builder.addEntries (DidaTradePaxos.PhaseOneResponseLogObject.newBuilder ()
 					.setInstance (slot).setValue (value).setValballot (ballot).setClassic (true));
-			if (value >= 0 && ids.add (value)) {
-				RequestRecord record = this.server_state.req_history.getIfExists (value);
-				if (record == null)
-					return false;
-				builder.addCommands (CommandTransfer.encode (record));
-			}
 		}
 		DidaTradePaxos.InstallStateRequest request = builder.build ();
 		Set<Integer> acceptors = new java.util.HashSet<> (this.server_state.scheduler.acceptors (ballot));
@@ -251,15 +242,9 @@ final class PaxosProposer {
 			List<Integer> acceptors, int n_acceptors, int quorum) {
 		if (!this.server_state.canProposeFor (ballot))
 			return true;
-		DidaTradePaxos.PhaseTwoRequest.Builder builder = DidaTradePaxos.PhaseTwoRequest
+		DidaTradePaxos.PhaseTwoRequest request = DidaTradePaxos.PhaseTwoRequest
 				.newBuilder ().setInstance (instance).setRequestballot (ballot)
-				.setValue (value).setSenderid (this.server_state.my_id);
-		RequestRecord record = this.server_state.req_history.getIfExists (value);
-		if (record != null)
-			builder.setCommand (CommandTransfer.encode (record));
-		if (this.server_state.scheduler.dynamicMembership () && value >= 0 && record == null)
-			return true;
-		DidaTradePaxos.PhaseTwoRequest request = builder.build ();
+				.setValue (value).setSenderid (this.server_state.my_id).build ();
 		PhaseTwoResponseProcessor processor = new PhaseTwoResponseProcessor (quorum, acceptors);
 		ArrayList<DidaTradePaxos.PhaseTwoReply> responses = new ArrayList<> ();
 		GenericResponseCollector<DidaTradePaxos.PhaseTwoReply> collector = new GenericResponseCollector<> (
@@ -286,7 +271,6 @@ final class PaxosProposer {
 		final boolean aborted;
 		final int maxballot;
 		final boolean membership_transferred;
-		final Map<Integer, DidaTradePaxos.CommandPayload> payloads = new HashMap<> ();
 		private final int[] instances;
 		private final Map<Integer, Integer> commands;
 
@@ -296,13 +280,8 @@ final class PaxosProposer {
 			this.maxballot = processor.getMaxballot ();
 			this.instances = processor.instances ();
 			this.commands = new HashMap<> ();
-			for (int instance : this.instances) {
-				int id = processor.commandFor (instance);
-				this.commands.put (instance, id);
-				DidaTradePaxos.CommandPayload payload = processor.payloadFor (id);
-				if (payload != null)
-					this.payloads.put (id, payload);
-			}
+			for (int instance : this.instances)
+				this.commands.put (instance, processor.commandFor (instance));
 		}
 
 		int[] instances () {

@@ -64,4 +64,13 @@ public class ScheduleC extends Schedule {
 	public boolean fastpaxos (int ballot) {
 		return ((ballot == 0) || (ballot == 2));
 	}
+
+	boolean dynamicMembership () {
+		return true;
+	}
+
+	// Only Config0 to Config4 exist.
+	boolean validBallot (int ballot) {
+		return ballot >= 0 && ballot < 5;
+	}
 }
