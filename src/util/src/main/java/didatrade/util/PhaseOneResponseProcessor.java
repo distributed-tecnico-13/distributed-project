@@ -108,9 +108,9 @@ public class PhaseOneResponseProcessor
 			if (current_observation == null) {
 				this.observations_per_instance.put (
 						response.getInstance (),
-						new AcceptedResponseObserver (response.getValballot (), response.getValue (), response.getClassic ()));
+						new AcceptedResponseObserver (response.getValballot (), response.getValue ()));
 			} else {
-				current_observation.observe (response.getValballot (), response.getValue (), response.getClassic ());
+				current_observation.observe (response.getValballot (), response.getValue ());
 			}
 		}
 
@@ -145,7 +145,7 @@ public class PhaseOneResponseProcessor
 	}
 
 	private InstanceResponse resolveInstance (AcceptedResponseObserver observations) {
-		if (observations.classic || !this.scheduler.fastpaxos (observations.ballot)) {
+		if (!this.scheduler.fastpaxos (observations.ballot)) {
 			if (observations.value_count.keySet ().size () != 1)
 				return null;
 			int value = observations.value_count.keySet ().iterator ().next ();
@@ -179,23 +179,19 @@ public class PhaseOneResponseProcessor
 
 	private static final class AcceptedResponseObserver {
 		private int ballot;
-		private boolean classic;
 		private final Map<Integer, Integer> value_count = new HashMap<> ();
 
-		private AcceptedResponseObserver(int ballot, int value, boolean classic) {
-			this.classic = classic;
+		private AcceptedResponseObserver(int ballot, int value) {
 			this.ballot = ballot;
 			this.value_count.put (value, 1);
 		}
 
-		private void observe (int ballot, int value, boolean classic) {
+		private void observe (int ballot, int value) {
 			if (ballot > this.ballot) {
-				this.classic = classic;
 				this.ballot = ballot;
 				this.value_count.clear ();
 				this.value_count.put (value, 1);
 			} else if (ballot == this.ballot) {
-				this.classic |= classic;
 				this.value_count.merge (value, 1, Integer::sum);
 			}
 		}

@@ -225,8 +225,6 @@ public final class DidaTradeServerState {
 
 		PaxosInstance entry = this.paxos_log.assignFastRequest (request_id, this.fast_first_instance);
 		boolean accepted = entry.accept (ballot, request_id);
-		if (accepted)
-			entry.noteFastAcceptance (ballot);
 		return new FastVoteState (accepted, ballot, entry.getInstanceNb ());
 	}
 

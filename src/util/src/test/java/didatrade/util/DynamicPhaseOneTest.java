@@ -23,7 +23,7 @@ class DynamicPhaseOneTest {
 		assertTrue (p.onNext (new ArrayList<> (), DidaTradePaxos.PhaseOneReply.newBuilder ()
 				.setServerid (6).setAccepted (true).setRequestballot (3).setMaxballot (3).setMembershiptransferred (true)
 				.addResponseLogObjects (DidaTradePaxos.PhaseOneResponseLogObject.newBuilder ()
-						.setInstance (0).setValue (101).setValballot (2).setClassic (true))
+						.setInstance (0).setValue (101).setValballot (2))
 				.build ()));
 		assertArrayEquals (new int[]{0}, p.instances ());
 		assertEquals (101, p.commandFor (0));
@@ -116,7 +116,7 @@ class DynamicPhaseOneTest {
 				.setServerid (id).setRequestballot (2).setAccepted (true).setMaxballot (2);
 		if (history)
 			r.addResponseLogObjects (DidaTradePaxos.PhaseOneResponseLogObject.newBuilder ()
-					.setInstance (0).setValue (101).setValballot (1).setClassic (true));
+					.setInstance (0).setValue (101).setValballot (1));
 		return p.onNext (new ArrayList<> (), r.build ());
 	}
 }

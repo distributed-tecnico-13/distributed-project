@@ -182,7 +182,7 @@ final class PaxosProposer {
 		for (int slot = 0; slot < this.recoveryLimit (ballot); slot++) {
 			int value = this.server_state.paxos_log.getEntry (slot).getCommandId ();
 			builder.addEntries (DidaTradePaxos.PhaseOneResponseLogObject.newBuilder ()
-					.setInstance (slot).setValue (value).setValballot (ballot).setClassic (true));
+					.setInstance (slot).setValue (value).setValballot (ballot));
 			if (value >= 0 && commands.add (value))
 				builder.addCommands (CommandTransfer.encode (this.server_state.req_history.getIfExists (value)));
 		}

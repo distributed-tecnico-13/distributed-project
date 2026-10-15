@@ -48,7 +48,7 @@ public class DidaTradePaxosServiceImpl extends DidaTradePaxosServiceGrpc.DidaTra
 						return DidaTradePaxos.PhaseOneResponseLogObject.newBuilder ()
 								.setInstance (entry.getInstanceNb ())
 								.setValue (snapshot.value)
-								.setValballot (snapshot.valballot).setClassic (snapshot.classic).build ();
+								.setValballot (snapshot.valballot).build ();
 					}).toList ();
 			phase_one = this.server_state.processPhaseOne (ballot);
 			membership_transferred = this.server_state.membershipTransferred ();
