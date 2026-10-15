@@ -3,6 +3,9 @@ package didatrade.server;
 import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.Set;
+import didatrade.server.request.CommandIdHelper;
+import didatrade.server.request.RequestHistory;
+import didatrade.server.request.RequestRecord;
 
 public class PaxosLog {
 	private Hashtable<Integer, PaxosInstance> log;

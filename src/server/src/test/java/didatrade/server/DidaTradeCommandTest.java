@@ -3,6 +3,8 @@ package didatrade.server;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 
 import org.junit.jupiter.api.Test;
+import didatrade.server.request.DidaTradeAction;
+import didatrade.server.request.DidaTradeCommand;
 
 class DidaTradeCommandTest {
 

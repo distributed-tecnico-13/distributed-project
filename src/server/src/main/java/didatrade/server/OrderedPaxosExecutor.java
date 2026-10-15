@@ -1,5 +1,9 @@
 package didatrade.server;
 
+import didatrade.server.request.DidaTradeAction;
+import didatrade.server.request.DidaTradeCommand;
+import didatrade.server.request.RequestRecord;
+
 /** Only MainLoop calls this executor; PaxosInstance still synchronizes with RPC threads. */
 final class OrderedPaxosExecutor {
 	private final DidaTradeServerState server_state;

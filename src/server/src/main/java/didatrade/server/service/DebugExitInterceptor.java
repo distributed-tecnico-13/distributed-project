@@ -1,10 +1,11 @@
-package didatrade.server;
+package didatrade.server.service;
 
 import io.grpc.ForwardingServerCallListener;
 import io.grpc.Metadata;
 import io.grpc.ServerCall;
 import io.grpc.ServerCallHandler;
 import io.grpc.ServerInterceptor;
+import didatrade.server.DidaTradeServerState;
 
 public class DebugExitInterceptor implements ServerInterceptor {
 	DidaTradeServerState server_state;

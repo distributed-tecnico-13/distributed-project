@@ -1,4 +1,4 @@
-package didatrade.server;
+package didatrade.server.request;
 
 public class RequestRecord {
 	private int requestid;

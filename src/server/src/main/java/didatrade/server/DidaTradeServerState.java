@@ -12,6 +12,7 @@ import didatrade.DidaTradePaxosServiceGrpc;
 
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
+import didatrade.server.request.RequestHistory;
 
 public final class DidaTradeServerState {
 	public static final int DEFAULT_POPULATION = 10;
@@ -81,6 +82,26 @@ public final class DidaTradeServerState {
 		// start worker
 		this.main_loop_worker = new Thread (main_loop);
 		this.main_loop_worker.start ();
+	}
+
+	public int getMyId () {
+		return this.my_id;
+	}
+
+	public ConfigurationScheduler getScheduler () {
+		return this.scheduler;
+	}
+
+	public RequestHistory getRequestHistory () {
+		return this.req_history;
+	}
+
+	public PaxosLog getPaxosLog () {
+		return this.paxos_log;
+	}
+
+	public MainLoop getMainLoop () {
+		return this.main_loop;
 	}
 
 	public synchronized int getCurrentBallot () {
@@ -302,8 +323,8 @@ public final class DidaTradeServerState {
 	}
 
 	public static final class PhaseOneState {
-		final boolean accepted;
-		final int maxballot;
+		public final boolean accepted;
+		public final int maxballot;
 
 		PhaseOneState(boolean accepted, int maxballot) {
 			this.accepted = accepted;
@@ -312,8 +333,8 @@ public final class DidaTradeServerState {
 	}
 
 	public static final class PhaseTwoState {
-		final boolean accepted;
-		final int maxballot;
+		public final boolean accepted;
+		public final int maxballot;
 
 		PhaseTwoState(boolean accepted, int maxballot) {
 			this.accepted = accepted;

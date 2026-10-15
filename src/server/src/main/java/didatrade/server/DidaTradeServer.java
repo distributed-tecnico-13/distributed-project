@@ -6,6 +6,10 @@ import io.grpc.ServerBuilder;
 
 import didatrade.DidaTradeMain; // ignore-unused-import
 import didatrade.DidaTradeMainServiceGrpc; // ignore-unused-import
+import didatrade.server.service.DebugExitInterceptor;
+import didatrade.server.service.DidaTradeMainServiceImpl;
+import didatrade.server.service.DidaTradeMasterServiceImpl;
+import didatrade.server.service.DidaTradePaxosServiceImpl;
 
 public class DidaTradeServer {
 

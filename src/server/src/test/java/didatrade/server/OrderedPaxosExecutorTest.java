@@ -10,6 +10,10 @@ import java.util.List;
 import org.junit.jupiter.api.Test;
 
 import didatrade.core.TradeManager;
+import didatrade.server.request.DidaTradeAction;
+import didatrade.server.request.DidaTradeCommand;
+import didatrade.server.request.RequestHistory;
+import didatrade.server.request.RequestRecord;
 
 class OrderedPaxosExecutorTest {
 

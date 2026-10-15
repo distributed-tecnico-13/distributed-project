@@ -23,6 +23,8 @@ import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
+import didatrade.server.request.CommandIdHelper;
+import didatrade.server.request.RequestHistory;
 
 class MultiPaxosPrepareTest {
 

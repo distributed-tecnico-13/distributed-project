@@ -1,9 +1,10 @@
-package didatrade.server;
+package didatrade.server.service;
 
 import didatrade.DidaTradeMaster;
 import didatrade.DidaTradeMasterServiceGrpc;
 
 import io.grpc.stub.StreamObserver;
+import didatrade.server.DidaTradeServerState;
 
 public class DidaTradeMasterServiceImpl extends DidaTradeMasterServiceGrpc.DidaTradeMasterServiceImplBase {
 	DidaTradeServerState server_state;
@@ -28,7 +29,7 @@ public class DidaTradeMasterServiceImpl extends DidaTradeMasterServiceGrpc.DidaT
 		if (new_ballot > this.server_state.getCurrentBallot ()) {
 			this.server_state.setCurrentBallot (new_ballot);
 
-			this.server_state.main_loop.wakeup ();
+			this.server_state.getMainLoop ().wakeup ();
 
 			completed_ballot = this.server_state.waitForCompletedBallot (new_ballot);
 		} else {

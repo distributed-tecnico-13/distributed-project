@@ -23,6 +23,9 @@ import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
+import didatrade.server.service.DidaTradeMainServiceImpl;
+import didatrade.server.service.DidaTradeMasterServiceImpl;
+import didatrade.server.service.DidaTradePaxosServiceImpl;
 
 /**
  * Real-TCP cluster tests. The name ends in Test, so they run with the normal suite
