@@ -18,8 +18,6 @@ public class DidaTradeMainServiceImpl extends DidaTradeMainServiceGrpc.DidaTrade
 		if (!CommandIdHelper.isClientRequest (reqid))
 			return false;
 		RequestRecord request_record = this.server_state.req_history.installIfAbsent (reqid, command);
-		if (this.server_state.req_history.getIfProcessed (reqid) != null)
-			return request_record.waitForResponse ();
 
 		if (!FastPaxosAcceptor.tryAcceptRequest (this.server_state, reqid))
 			this.server_state.main_loop.wakeup ();
