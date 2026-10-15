@@ -55,8 +55,7 @@ final class PaxosProposer {
 			return false;
 
 		for (int instance : phase_one.instances ())
-			if (!this.server_state.paxos_log.adopt (instance, phase_one.commandFor (instance)))
-				throw new IllegalStateException ("Recovery conflicts with a decided slot");
+			this.server_state.paxos_log.adopt (instance, phase_one.commandFor (instance));
 		this.fillNoops (phase_one);
 
 		this.prepared_ballot = ballot;
