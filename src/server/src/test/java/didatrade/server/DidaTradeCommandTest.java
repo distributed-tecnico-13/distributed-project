@@ -14,5 +14,6 @@ class DidaTradeCommandTest {
 		assertEquals (3, command.getUserId ());
 		assertEquals (100, command.getQuantity ());
 		assertEquals (50, command.getStock ());
+		assertEquals (-1, command.getInstance ());
 	}
 }

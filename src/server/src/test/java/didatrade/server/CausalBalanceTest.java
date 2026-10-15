@@ -159,6 +159,26 @@ class CausalBalanceTest {
 	}
 
 	@Test
+	void rejectedAddUserReplyCarriesNoExecutionInstance () throws Exception {
+		DidaTradeServerState state = newState ();
+		DidaTradeMainServiceImpl service = new DidaTradeMainServiceImpl (state);
+		DidaTradeMain.AddUserRequest request = DidaTradeMain.AddUserRequest.newBuilder ()
+				.setReqid (CommandIdHelper.NOOP_VALUE)
+				.setUserid (7)
+				.setCash (100)
+				.setStock (10)
+				.build ();
+		CapturingObserver<DidaTradeMain.AddUserReply> observer = new CapturingObserver<> ();
+
+		this.rpc_threads.submit ( () -> service.adduser (request, observer)).get (2, TimeUnit.SECONDS);
+
+		assertTrue (observer.completed);
+		assertNotNull (observer.value);
+		assertFalse (observer.value.getResult ());
+		assertEquals (-1, observer.value.getInstance ());
+	}
+
+	@Test
 	void balanceReplyForUnknownUserStillCarriesInstance () throws Exception {
 		DidaTradeServerState state = newState ();
 		DidaTradeMainServiceImpl service = new DidaTradeMainServiceImpl (state);

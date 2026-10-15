@@ -5,7 +5,7 @@ public class DidaTradeCommand {
 	private int user_id;
 	private int quantity;
 	private int stock;
-	private int instance;
+	private int instance = -1; // set when this command executes
 
 	public DidaTradeCommand(DidaTradeAction command_type) {
 		this.action = command_type;
