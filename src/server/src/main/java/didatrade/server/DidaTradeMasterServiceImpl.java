@@ -42,6 +42,7 @@ public class DidaTradeMasterServiceImpl extends DidaTradeMasterServiceGrpc.DidaT
 		} else {
 			completed_ballot = this.server_state.getCompletedBallot ();
 		}
+		// A higher ballot may supersede this request while it waits for recovery.
 		if (completed_ballot < new_ballot && this.server_state.getCurrentBallot () > new_ballot) {
 			responseObserver.onError (io.grpc.Status.ABORTED.withDescription ("Ballot superseded before completion").asRuntimeException ());
 			return;
