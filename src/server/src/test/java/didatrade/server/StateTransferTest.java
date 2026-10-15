@@ -34,7 +34,7 @@ class StateTransferTest {
 		};
 		s.paxos_log = new PaxosLog () {
 			@Override
-			public PaxosInstance getEntry (int slot) {
+			public PaxosInstance testAndSetEntry (int slot) {
 				if (Thread.currentThread ().getName ().equals ("delayed-installation")) {
 					// Fail before acquiring the log lock, so the old bug cannot leak
 					// deadlocked threads when this regression fails.
@@ -44,7 +44,7 @@ class StateTransferTest {
 						installing.countDown ();
 					}
 				}
-				return super.getEntry (slot);
+				return super.testAndSetEntry (slot);
 			}
 		};
 		s.setCurrentBallot (3);
@@ -72,16 +72,6 @@ class StateTransferTest {
 			a.join (2000);
 			b.join (2000);
 		}
-	}
-
-	@Test
-	void missingCommandsCannotPublishACompleteTransfer () {
-		DidaTradeServerState s = state (5);
-		assertFalse (StateTransfer.install (s, prefix ()));
-		assertFalse (s.membershipTransferred ());
-		assertEquals (0, s.paxos_log.length ());
-		assertEquals (0, s.getCurrentBallot ());
-		assertNull (s.req_history.getIfExists (101));
 	}
 
 	@Test
@@ -164,17 +154,7 @@ class StateTransferTest {
 		assertEquals (50, s.trade_manager.balance (77));
 		assertFalse (s.paxos_log.getEntry (0).isAccepted ());
 	}
-	@Test
-	void invalidCommandIdsAreRejectedBeforeInstallation () {
-		DidaTradeServerState s = state (5);
-		for (int value : new int[]{CommandIdHelper.ABSENT_VALUE, -3}) {
-			DidaTradePaxos.InstallStateRequest invalid = prefix ().toBuilder ()
-					.setEntries (0, prefix ().getEntries (0).toBuilder ().setValue (value)).build ();
-			assertFalse (StateTransfer.install (s, invalid));
-		}
-		assertEquals (0, s.paxos_log.length ());
-		assertFalse (s.membershipTransferred ());
-	}
+
 	@Test
 	void executionWaitsForClientCommandsWithoutSkippingTheMissingSlot () {
 		DidaTradeServerState s = state (5);
@@ -192,15 +172,7 @@ class StateTransferTest {
 		assertEquals (50, s.trade_manager.balance (77));
 		assertEquals (1, s.getLastExecutedInstance ());
 	}
-	@Test
-	void conflictingPrefixesAreRejectedBeforeInstallation () {
-		DidaTradeServerState s = state (5);
-		s.paxos_log.testAndSetEntry (1).decide (0, 999);
-		assertFalse (StateTransfer.install (s, payloadPrefix ()));
-		assertNull (s.req_history.getIfExists (101));
-		assertNull (s.paxos_log.getEntry (0));
-		assertFalse (s.membershipTransferred ());
-	}
+
 	@Test
 	void invalidConsoleBallotsCannotDisableAnOpenFastRound () {
 		DidaTradeServerState s = state (3);

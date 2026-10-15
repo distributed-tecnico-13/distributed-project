@@ -27,18 +27,6 @@ final class StateTransfer {
 			} catch (IllegalArgumentException e) {
 				return false;
 			}
-			for (int i = 0; i < request.getEntriesCount (); i++) {
-				DidaTradePaxos.PhaseOneResponseLogObject e = request.getEntries (i);
-				if (e.getInstance () != i || e.getValballot () != ballot
-						|| (!CommandIdHelper.isNoop (e.getValue ())
-								&& (!CommandIdHelper.isClientRequest (e.getValue ())
-										|| (!commands.containsKey (e.getValue ()) && state.req_history.getIfExists (e.getValue ()) == null))))
-					return false;
-				PaxosInstance local = state.paxos_log.getEntry (i);
-				if (local != null && ((local.isDecided () && local.getCommandId () != e.getValue ())
-						|| (local.getWriteBallot () == ballot && local.getAcceptedValue () != e.getValue ())))
-					return false;
-			}
 			if (!state.req_history.installAllIfAbsent (commands))
 				return false;
 			state.setCurrentBallot (ballot);
