@@ -260,6 +260,7 @@ public final class DidaTradeServerState {
 	}
 
 	public synchronized int waitForCompletedBallot (int ballot) {
+		// Stop waiting if a newer ballot supersedes this ballot before completion.
 		while (this.completed_ballot < ballot && this.current_ballot <= ballot) {
 			try {
 				wait ();
