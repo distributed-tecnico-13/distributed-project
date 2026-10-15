@@ -24,6 +24,11 @@ public class DidaTradeMainServiceImpl extends DidaTradeMainServiceGrpc.DidaTrade
 		return request_record.waitForResponse ();
 	}
 
+	private int executedInstance (int reqid) {
+		RequestRecord record = this.server_state.req_history.getIfExists (reqid);
+		return record == null ? -1 : record.getRequest ().getInstance ();
+	}
+
 	@Override
 	public void populate (DidaTradeMain.PopulateRequest request, StreamObserver<DidaTradeMain.PopulateReply> responseObserver) {
 		// for debug purposes
@@ -48,7 +53,7 @@ public class DidaTradeMainServiceImpl extends DidaTradeMainServiceGrpc.DidaTrade
 		System.out.println ("Result is ready for open request with reqid " + reqid);
 
 		DidaTradeMain.PopulateReply response = DidaTradeMain.PopulateReply.newBuilder ().setReqid (reqid).setResult (result)
-				.setInstance (this.server_state.req_history.getIfExists (reqid) == null ? -1 : this.server_state.req_history.getIfExists (reqid).getRequest ().getInstance ()).build ();
+				.setInstance (this.executedInstance (reqid)).build ();
 		responseObserver.onNext (response);
 		responseObserver.onCompleted ();
 	}
@@ -79,7 +84,7 @@ public class DidaTradeMainServiceImpl extends DidaTradeMainServiceGrpc.DidaTrade
 		System.out.println ("Result is ready for add request with reqid " + reqid);
 
 		DidaTradeMain.AddUserReply response = DidaTradeMain.AddUserReply.newBuilder ().setReqid (reqid).setResult (result)
-				.setInstance (this.server_state.req_history.getIfExists (reqid) == null ? -1 : this.server_state.req_history.getIfExists (reqid).getRequest ().getInstance ()).build ();
+				.setInstance (this.executedInstance (reqid)).build ();
 
 		responseObserver.onNext (response);
 		responseObserver.onCompleted ();
@@ -109,7 +114,7 @@ public class DidaTradeMainServiceImpl extends DidaTradeMainServiceGrpc.DidaTrade
 		System.out.println ("Result is ready for add request with reqid " + reqid);
 
 		DidaTradeMain.BuyReply response = DidaTradeMain.BuyReply.newBuilder ().setReqid (reqid).setResult (result)
-				.setInstance (this.server_state.req_history.getIfExists (reqid) == null ? -1 : this.server_state.req_history.getIfExists (reqid).getRequest ().getInstance ()).build ();
+				.setInstance (this.executedInstance (reqid)).build ();
 
 		responseObserver.onNext (response);
 		responseObserver.onCompleted ();
@@ -140,7 +145,7 @@ public class DidaTradeMainServiceImpl extends DidaTradeMainServiceGrpc.DidaTrade
 		System.out.println ("Result is ready for add request with reqid " + reqid);
 
 		DidaTradeMain.SellReply response = DidaTradeMain.SellReply.newBuilder ().setReqid (reqid).setResult (result)
-				.setInstance (this.server_state.req_history.getIfExists (reqid) == null ? -1 : this.server_state.req_history.getIfExists (reqid).getRequest ().getInstance ()).build ();
+				.setInstance (this.executedInstance (reqid)).build ();
 
 		responseObserver.onNext (response);
 		responseObserver.onCompleted ();
@@ -199,7 +204,7 @@ public class DidaTradeMainServiceImpl extends DidaTradeMainServiceGrpc.DidaTrade
 		System.out.println ("Result is ready for dump request with reqid " + reqid);
 
 		DidaTradeMain.DumpReply response = DidaTradeMain.DumpReply.newBuilder ().setReqid (reqid).setResult (result)
-				.setInstance (this.server_state.req_history.getIfExists (reqid) == null ? -1 : this.server_state.req_history.getIfExists (reqid).getRequest ().getInstance ()).build ();
+				.setInstance (this.executedInstance (reqid)).build ();
 
 		responseObserver.onNext (response);
 		responseObserver.onCompleted ();

@@ -193,7 +193,7 @@ class DynamicMembershipIntegrationTest {
 			for (int id : List.of (0, 1, 2))
 				assertTrue (c.states[id].processPhaseOne (2).accepted);
 			DidaTradePaxos.InstallStateRequest empty = DidaTradePaxos.InstallStateRequest.newBuilder ()
-					.setBallot (2).setSenderid (3).setThroughinstance (-1).build ();
+					.setBallot (2).setThroughinstance (-1).build ();
 			for (int id : List.of (2, 5, 6))
 				assertTrue (StateTransfer.install (c.states[id], empty));
 			assertFalse (c.states[3].membershipTransferred ());
@@ -319,7 +319,7 @@ class DynamicMembershipIntegrationTest {
 				PaxosInstance e = c.states[id].paxos_log.getEntry (1);
 				return e != null && e.getWriteBallot () == 2 && !e.getAcceptedSnapshot ().classic;
 			}).count ();
-			assertTrue (fastVotes >= 3, "new cohort did not use direct Fast voting");
+			assertTrue (fastVotes >= 4, "new cohort did not use direct Fast voting");
 			assertEquals (200, c.states[5].getBalance (1, 771).balance ());
 		}
 	}

@@ -24,7 +24,6 @@ message FetchCommandsReply {
 // Only the configured leader sends this after confirming the prefix by Phase 2.
 message InstallStateRequest {
   int32 ballot = 1;
-  int32 senderid = 2;
   int32 throughinstance = 3;
   repeated PhaseOneResponseLogObject entries = 4;
   repeated CommandPayload commands = 5;
