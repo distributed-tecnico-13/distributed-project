@@ -22,6 +22,35 @@ import io.grpc.ServerBuilder;
 @SuppressWarnings("try")
 class DynamicMembershipIntegrationTest {
 	@Test
+	@Timeout(30)
+	void handoffPreservesCommandsWithoutAnyLaterClientDelivery () throws Exception {
+		try (Cluster c = new Cluster ()) {
+			for (int id : List.of (0, 1, 2)) {
+				c.states[id].req_history.installIfAbsent (101, new DidaTradeCommand (DidaTradeAction.ADDUSER, 77, 100, 10));
+				c.states[id].req_history.installIfAbsent (201, new DidaTradeCommand (DidaTradeAction.BUY, 77, 50));
+				assertTrue (c.states[id].processPhaseTwo (c.states[id].paxos_log.testAndSetEntry (0), 1, 101).accepted);
+				assertTrue (c.states[id].processPhaseTwo (c.states[id].paxos_log.testAndSetEntry (1), 1, 201).accepted);
+			}
+			c.ballot (2, 3);
+			// Wait for installation, not client delivery, before removing all original holders.
+			await ( () -> List.of (3, 4, 5, 6).stream ().allMatch (id -> c.states[id].membershipTransferred ()));
+			for (int id : List.of (0, 1, 2))
+				c.states[id].setDebugMode (2);
+			// A later leader must recover using the new group alone.
+			c.ballot (3, 4);
+			DidaTradeMain.AddUserReply fresh = broadcastAdd (c, 301, 88, 200, 3, 4, 5, 6);
+			assertTrue (fresh.getResult ());
+			for (int id : List.of (3, 4, 5, 6)) {
+				assertEquals (50, c.states[id].getBalance (1, 77).balance ());
+				assertEquals (200, c.states[id].getBalance (fresh.getInstance (), 88).balance ());
+				assertTrue (c.client (id).withDeadlineAfter (3, TimeUnit.SECONDS).buy (
+						DidaTradeMain.BuyRequest.newBuilder ().setReqid (201).setUserid (77).setQuantity (50).build ()).getResult ());
+				assertEquals (50, c.states[id].trade_manager.balance (77));
+			}
+		}
+	}
+
+	@Test
 	@Timeout(40)
 	void transfersOldChosenHistoryAndContinuesAfterRetirement () throws Exception {
 		try (Cluster c = new Cluster ()) {
@@ -93,56 +122,34 @@ class DynamicMembershipIntegrationTest {
 
 	@Test
 	@Timeout(20)
-	void recoveredIdsWaitForDelayedClientCommandsAndResumeInOrder () throws Exception {
+	void recoveryCanFetchCommandsFromALearnerThatNeverVoted () throws Exception {
 		try (Cluster c = new Cluster ()) {
-			// Only the old majority has received the original client requests so far.
-			for (int id : List.of (0, 1, 2)) {
-				c.states[id].req_history.installIfAbsent (101, new DidaTradeCommand (DidaTradeAction.ADDUSER, 77, 100, 10));
-				c.states[id].req_history.installIfAbsent (201, new DidaTradeCommand (DidaTradeAction.BUY, 77, 50));
+			// Only learner 6 received the command; old acceptors have only its ID.
+			c.states[6].req_history.installIfAbsent (101, new DidaTradeCommand (DidaTradeAction.ADDUSER, 77, 100, 10));
+			for (int id : List.of (0, 1, 2))
 				assertTrue (c.states[id].processPhaseTwo (c.states[id].paxos_log.testAndSetEntry (0), 1, 101).accepted);
-				assertTrue (c.states[id].processPhaseTwo (c.states[id].paxos_log.testAndSetEntry (1), 1, 201).accepted);
-			}
 			c.ballot (2, 3);
-			assertEquals (2, c.states[3].getCompletedBallot ());
-			await ( () -> c.states[6].paxos_log.getEntry (1) != null && c.states[6].paxos_log.getEntry (1).isDecided ());
-			assertTrue (c.states[6].paxos_log.getEntry (1).isDecided ());
-			assertEquals (201, c.states[6].paxos_log.getEntry (1).getCommandId ());
-			assertNull (c.states[6].req_history.getIfExists (101));
-			assertNull (c.states[6].req_history.getIfExists (201));
-			assertEquals (-1, c.states[6].getLastExecutedInstance ());
-			DidaTradeMain.AddUserRequest add = DidaTradeMain.AddUserRequest.newBuilder ()
-					.setReqid (101).setUserid (77).setCash (100).setStock (10).build ();
-			DidaTradeMain.BuyRequest buy = DidaTradeMain.BuyRequest.newBuilder ()
-					.setReqid (201).setUserid (77).setQuantity (50).build ();
-			java.util.concurrent.ExecutorService requests = java.util.concurrent.Executors.newFixedThreadPool (2);
-			try {
-				java.util.concurrent.Future<DidaTradeMain.BalanceReply> balance = requests.submit ( () -> c.client (6)
-						.withDeadlineAfter (5, TimeUnit.SECONDS).balance (DidaTradeMain.BalanceRequest.newBuilder ()
-								.setUserid (77).setMininstance (1).build ()));
-				java.util.concurrent.Future<DidaTradeMain.BuyReply> later = requests.submit ( () -> c.client (6)
-						.withDeadlineAfter (5, TimeUnit.SECONDS).buy (buy));
-				await ( () -> c.states[6].req_history.getIfPending (201) != null);
-				assertThrows (java.util.concurrent.TimeoutException.class, () -> later.get (100, TimeUnit.MILLISECONDS));
-				assertThrows (java.util.concurrent.TimeoutException.class, () -> balance.get (100, TimeUnit.MILLISECONDS));
-				assertEquals (-1, c.states[6].getLastExecutedInstance ());
-				// The earlier request arrives last and wakes execution of both slots.
-				assertEquals (0, c.client (6).withDeadlineAfter (5, TimeUnit.SECONDS).adduser (add).getInstance ());
-				DidaTradeMain.BuyReply buyReply = later.get (2, TimeUnit.SECONDS);
-				assertTrue (buyReply.getResult ());
-				assertEquals (1, buyReply.getInstance ());
-				DidaTradeMain.BalanceReply result = balance.get (2, TimeUnit.SECONDS);
-				assertEquals (50, result.getBalance ());
-				assertEquals (1, result.getInstance ());
-				assertTrue (c.client (6).withDeadlineAfter (5, TimeUnit.SECONDS).buy (buy).getResult ());
-				assertEquals (50, c.states[6].getBalance (1, 77).balance ());
-				// Finish delivering the original broadcasts to the other learners.
-				for (int id = 0; id < 6; id++) {
-					assertTrue (c.client (id).withDeadlineAfter (5, TimeUnit.SECONDS).adduser (add).getResult ());
-					assertTrue (c.client (id).withDeadlineAfter (5, TimeUnit.SECONDS).buy (buy).getResult ());
-				}
-			} finally {
-				requests.shutdownNow ();
-			}
+			await ( () -> c.states[3].getLastExecutedInstance () == 0);
+			assertEquals (100, c.states[3].trade_manager.balance (77));
+		}
+	}
+
+	@Test
+	@Timeout(20)
+	void handoffCannotCompleteUntilMissingCommandsAreAvailable () throws Exception {
+		try (Cluster c = new Cluster ()) {
+			for (int id : List.of (0, 1, 2))
+				assertTrue (c.states[id].processPhaseTwo (c.states[id].paxos_log.testAndSetEntry (0), 1, 101).accepted);
+			java.util.concurrent.CompletableFuture<Void> handoff = java.util.concurrent.CompletableFuture.runAsync ( () -> c.ballot (2, 3));
+			await ( () -> c.states[3].paxos_log.getEntry (0) != null && c.states[3].paxos_log.getEntry (0).isDecided ());
+			assertThrows (java.util.concurrent.TimeoutException.class, () -> handoff.get (300, TimeUnit.MILLISECONDS));
+			assertTrue (c.states[3].getCompletedBallot () < 2);
+			assertFalse (c.states[3].membershipTransferred ());
+			assertFalse (c.states[3].isFastRoundOpen (2));
+			c.states[6].req_history.installIfAbsent (101, new DidaTradeCommand (DidaTradeAction.ADDUSER, 77, 100, 10));
+			handoff.get (8, TimeUnit.SECONDS);
+			await ( () -> c.states[3].getLastExecutedInstance () == 0);
+			assertEquals (100, c.states[3].trade_manager.balance (77));
 		}
 	}
 

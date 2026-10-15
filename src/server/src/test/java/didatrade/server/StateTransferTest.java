@@ -10,6 +10,59 @@ import didatrade.core.TradeManager;
 
 class StateTransferTest {
 	@Test
+	void missingCommandsCannotPublishACompleteTransfer () {
+		DidaTradeServerState s = state (5);
+		assertFalse (StateTransfer.install (s, prefix ()));
+		assertFalse (s.membershipTransferred ());
+		assertEquals (0, s.paxos_log.length ());
+		assertEquals (0, s.getCurrentBallot ());
+		assertNull (s.req_history.getIfExists (101));
+	}
+
+	@Test
+	void transferredCommandsPreserveWaitersAndExecuteExactlyOnce () {
+		DidaTradeServerState s = state (5);
+		RequestRecord waiter = s.req_history.installIfAbsent (201, new DidaTradeCommand (DidaTradeAction.BUY, 77, 50));
+		DidaTradePaxos.InstallStateRequest request = payloadPrefix ();
+		assertTrue (StateTransfer.install (s, request));
+		assertSame (waiter, s.req_history.getIfExists (201));
+		OrderedPaxosExecutor executor = new OrderedPaxosExecutor (s);
+		assertEquals (2, executor.drain ());
+		assertEquals (50, s.trade_manager.balance (77));
+		assertTrue (StateTransfer.install (s, request));
+		assertEquals (0, executor.drain ());
+		assertSame (waiter, s.req_history.getIfProcessed (201));
+		assertEquals (50, s.trade_manager.balance (77));
+	}
+
+	@Test
+	void malformedOrConflictingCommandsCannotPartiallyInstall () {
+		for (DidaTradePaxos.InstallStateRequest request : new DidaTradePaxos.InstallStateRequest[]{
+				payloadPrefix ().toBuilder ().setCommands (1, payloadPrefix ().getCommands (1).toBuilder ().setAction ("INVALID")).build (),
+				payloadPrefix ().toBuilder ().addCommands (payloadPrefix ().getCommands (0).toBuilder ().setQuantity (999)).build (),
+				payloadPrefix ().toBuilder ().setCommands (1, payloadPrefix ().getCommands (1).toBuilder ().setRequestid (-1)).build ()}) {
+			DidaTradeServerState s = state (5);
+			assertFalse (StateTransfer.install (s, request));
+			assertNull (s.req_history.getIfExists (101));
+			assertEquals (0, s.paxos_log.length ());
+			assertFalse (s.membershipTransferred ());
+		}
+		DidaTradeServerState s = state (5);
+		RequestRecord existing = s.req_history.installIfAbsent (201, new DidaTradeCommand (DidaTradeAction.BUY, 77, 25));
+		assertFalse (StateTransfer.install (s, payloadPrefix ()));
+		assertSame (existing, s.req_history.getIfExists (201));
+		assertNull (s.req_history.getIfExists (101));
+		assertEquals (0, s.paxos_log.length ());
+		assertFalse (s.membershipTransferred ());
+	}
+
+	private static DidaTradePaxos.InstallStateRequest payloadPrefix () {
+		return prefix ().toBuilder ()
+				.addCommands (CommandTransfer.encode (new RequestRecord (101, new DidaTradeCommand (DidaTradeAction.ADDUSER, 77, 100, 10))))
+				.addCommands (CommandTransfer.encode (new RequestRecord (201, new DidaTradeCommand (DidaTradeAction.BUY, 77, 50))))
+				.build ();
+	}
+	@Test
 	void repeatedInstallationPreservesWaitersAndDoesNotRepeatTrade () {
 		DidaTradeServerState s = state (5);
 		RequestRecord waiter = s.req_history.installIfAbsent (101, new DidaTradeCommand (DidaTradeAction.ADDUSER, 77, 100, 10));
@@ -60,8 +113,9 @@ class StateTransferTest {
 	@Test
 	void executionWaitsForClientCommandsWithoutSkippingTheMissingSlot () {
 		DidaTradeServerState s = state (5);
-		assertTrue (StateTransfer.install (s, prefix ()));
-		assertTrue (s.membershipTransferred ());
+		// Normal learning may still precede client delivery; it must not skip slots.
+		s.paxos_log.testAndSetEntry (0).decide (2, 101);
+		s.paxos_log.testAndSetEntry (1).decide (2, 201);
 		assertNull (s.req_history.getIfExists (101));
 		OrderedPaxosExecutor executor = new OrderedPaxosExecutor (s);
 		assertEquals (0, executor.drain ());
@@ -78,7 +132,8 @@ class StateTransferTest {
 		DidaTradeServerState s = state (5);
 		assertFalse (StateTransfer.install (s, prefix ().toBuilder ().setThroughinstance (2).build ()));
 		s.paxos_log.testAndSetEntry (1).decide (0, 999);
-		assertFalse (StateTransfer.install (s, prefix ()));
+		assertFalse (StateTransfer.install (s, payloadPrefix ()));
+		assertNull (s.req_history.getIfExists (101));
 		assertNull (s.paxos_log.getEntry (0));
 		assertFalse (s.membershipTransferred ());
 	}

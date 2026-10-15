@@ -16,6 +16,20 @@ public class DidaTradePaxosServiceImpl extends DidaTradePaxosServiceGrpc.DidaTra
 	}
 
 	@Override
+	public void fetchcommands (DidaTradePaxos.FetchCommandsRequest request,
+			StreamObserver<DidaTradePaxos.FetchCommandsReply> responseObserver) {
+		this.server_state.applyDebugState ();
+		DidaTradePaxos.FetchCommandsReply.Builder reply = DidaTradePaxos.FetchCommandsReply.newBuilder ();
+		for (int id : request.getRequestidsList ()) {
+			RequestRecord record = this.server_state.req_history.getIfExists (id);
+			if (record != null)
+				reply.addCommands (CommandTransfer.encode (record));
+		}
+		responseObserver.onNext (reply.build ());
+		responseObserver.onCompleted ();
+	}
+
+	@Override
 	public void phaseone (DidaTradePaxos.PhaseOneRequest request, StreamObserver<DidaTradePaxos.PhaseOneReply> responseObserver) {
 		// System.out.println("Receive phase1 request: \n" + request);
 
