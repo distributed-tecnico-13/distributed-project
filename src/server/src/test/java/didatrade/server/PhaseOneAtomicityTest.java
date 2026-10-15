@@ -13,6 +13,7 @@ import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 
 import didatrade.DidaTradePaxos;
+import didatrade.configs.ConfigurationScheduler;
 import io.grpc.stub.StreamObserver;
 
 // Reproduces the review finding: the Phase 1 handler snapshots accepted entries and then
@@ -24,6 +25,7 @@ class PhaseOneAtomicityTest {
 	@Test
 	void phaseOneSnapshotAndPromiseAreAtomicWithRespectToPhaseTwo () throws Exception {
 		DidaTradeServerState state = new DidaTradeServerState ();
+		state.scheduler = new ConfigurationScheduler ('A');
 		setDebugState (state, new DebugState ());
 
 		CountDownLatch snapshotTaken = new CountDownLatch (1);

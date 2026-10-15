@@ -12,11 +12,14 @@ import java.util.concurrent.TimeUnit;
 
 import org.junit.jupiter.api.Test;
 
+import didatrade.configs.ConfigurationScheduler;
+
 class AcceptorTransitionTest {
 
 	@Test
 	void lowerBallotCannotBeAcceptedAfterHigherPromise () {
 		DidaTradeServerState state = new DidaTradeServerState ();
+		state.scheduler = new ConfigurationScheduler ('A');
 		PaxosInstance entry = new PaxosInstance (0);
 
 		assertTrue (state.processPhaseOne (entry, 5).accepted);
@@ -30,6 +33,7 @@ class AcceptorTransitionTest {
 	@Test
 	void sameBallotCannotAcceptTwoDifferentValuesBeforeDecision () {
 		DidaTradeServerState state = new DidaTradeServerState ();
+		state.scheduler = new ConfigurationScheduler ('A');
 		PaxosInstance entry = new PaxosInstance (0);
 
 		assertTrue (state.processPhaseTwo (entry, 5, 100).accepted);
@@ -47,6 +51,7 @@ class AcceptorTransitionTest {
 	@Test
 	void decidedSlotAcceptsSameValueAtNewerBallot () {
 		DidaTradeServerState state = new DidaTradeServerState ();
+		state.scheduler = new ConfigurationScheduler ('A');
 		PaxosInstance entry = new PaxosInstance (0);
 		assertTrue (entry.decide (4, 100));
 
@@ -64,6 +69,7 @@ class AcceptorTransitionTest {
 	@Test
 	void decidedSlotRejectsConflictingValueButObservesHigherBallot () {
 		DidaTradeServerState state = new DidaTradeServerState ();
+		state.scheduler = new ConfigurationScheduler ('A');
 		PaxosInstance entry = new PaxosInstance (0);
 		assertTrue (state.processPhaseTwo (entry, 4, 100).accepted);
 		assertTrue (entry.decide (4, 100));
@@ -88,6 +94,7 @@ class AcceptorTransitionTest {
 		try {
 			for (int i = 0; i < 50; i++) {
 				DidaTradeServerState state = new DidaTradeServerState ();
+				state.scheduler = new ConfigurationScheduler ('A');
 				PaxosInstance entry = new PaxosInstance (i);
 				state.processPhaseTwo (entry, 4, 100);
 				CountDownLatch start = new CountDownLatch (1);

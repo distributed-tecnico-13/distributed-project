@@ -178,7 +178,7 @@ public final class DidaTradeServerState {
 	public synchronized PhaseTwoState processPhaseTwo (
 			PaxosInstance entry, int ballot, int value) {
 		boolean accepted = false;
-		if ((this.scheduler == null || this.scheduler.isacceptor (this.my_id, ballot)) && ballot >= this.current_ballot) {
+		if (this.scheduler.isacceptor (this.my_id, ballot) && ballot >= this.current_ballot) {
 			this.setCurrentBallot (ballot);
 			accepted = entry.accept (ballot, value);
 			if (accepted)
