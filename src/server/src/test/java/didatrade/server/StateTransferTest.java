@@ -138,16 +138,32 @@ class StateTransferTest {
 		assertFalse (s.membershipTransferred ());
 	}
 	@Test
-	void invalidBallotsCannotDisableAnOpenFastRound () {
+	void invalidConsoleBallotsCannotDisableAnOpenFastRound () {
 		DidaTradeServerState s = state (3);
 		assertTrue (s.openFastRound (2));
-		assertFalse (s.processPhaseOne (999).accepted);
-		assertTrue (s.isFastRoundOpen (2));
-		PaxosInstance entry = s.paxos_log.testAndSetEntry (0);
-		assertFalse (s.processPhaseOne (entry, 999).accepted);
-		assertTrue (s.isFastRoundOpen (2));
-		assertFalse (s.processPhaseTwo (entry, 999, 101).accepted);
-		assertTrue (s.isFastRoundOpen (2));
+		for (int ballot : new int[]{-1, 5, 999, 3}) { // ballot 3 belongs to leader 4
+			Throwable[] error = new Throwable[1];
+			new DidaTradeMasterServiceImpl (s).newballot (
+					DidaTradeMaster.NewBallotRequest.newBuilder ().setNewballot (ballot).build (),
+					new StreamObserver<DidaTradeMaster.NewBallotReply> () {
+						@Override
+						public void onNext (DidaTradeMaster.NewBallotReply reply) {
+							fail ("Invalid console input must not succeed");
+						}
+						@Override
+						public void onError (Throwable failure) {
+							error[0] = failure;
+						}
+						@Override
+						public void onCompleted () {
+							fail ("Invalid console input must be rejected");
+						}
+					});
+			assertNotNull (error[0]);
+			assertEquals (io.grpc.Status.Code.INVALID_ARGUMENT, io.grpc.Status.fromThrowable (error[0]).getCode ());
+			assertEquals (2, s.getCurrentBallot ());
+			assertTrue (s.isFastRoundOpen (2));
+		}
 	}
 
 	@Test

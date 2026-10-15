@@ -13,7 +13,7 @@ final class StateTransfer {
 		int ballot = request.getBallot ();
 		synchronized (state) {
 			synchronized (state.req_history) {
-				if (!state.scheduler.validBallot (ballot) || ballot < state.getCurrentBallot ()
+				if (ballot < state.getCurrentBallot ()
 						|| request.getSenderid () != state.scheduler.leader (ballot)
 						|| request.getThroughinstance () < -1
 						|| request.getEntriesCount () != (long) request.getThroughinstance () + 1)

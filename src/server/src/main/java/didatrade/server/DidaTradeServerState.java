@@ -89,8 +89,6 @@ public final class DidaTradeServerState {
 	}
 
 	public synchronized void setCurrentBallot (int ballot) {
-		if (this.scheduler != null && !this.scheduler.validBallot (ballot))
-			throw new IllegalArgumentException ("Invalid ballot " + ballot);
 		this.disableFastPaxosIfNeeded (ballot);
 		this.current_ballot = Math.max (this.current_ballot, ballot);
 		this.notifyAll ();
@@ -102,7 +100,7 @@ public final class DidaTradeServerState {
 	}
 
 	public synchronized boolean canProposeFor (int ballot) {
-		return this.scheduler.validBallot (ballot) && ballot == this.current_ballot && this.scheduler.leader (ballot) == this.my_id;
+		return ballot == this.current_ballot && this.scheduler.leader (ballot) == this.my_id;
 	}
 
 	public synchronized boolean membershipTransferred () {
@@ -165,14 +163,14 @@ public final class DidaTradeServerState {
 	// Lock order: server state, then one PaxosInstance. No RPC runs under either lock.
 	public synchronized PaxosInstance.PhaseOneState processPhaseOne (
 			PaxosInstance entry, int ballot) {
-		boolean accepted = (this.scheduler == null || this.scheduler.validBallot (ballot)) && ballot >= this.current_ballot;
+		boolean accepted = ballot >= this.current_ballot;
 		if (accepted)
 			this.setCurrentBallot (ballot);
 		return entry.phaseOneState (accepted, ballot, this.current_ballot);
 	}
 
 	public synchronized PhaseOneState processPhaseOne (int ballot) {
-		boolean accepted = (this.scheduler == null || this.scheduler.validBallot (ballot)) && ballot >= this.current_ballot;
+		boolean accepted = ballot >= this.current_ballot;
 		if (accepted)
 			this.setCurrentBallot (ballot);
 		return new PhaseOneState (accepted, this.current_ballot);
@@ -181,7 +179,7 @@ public final class DidaTradeServerState {
 	public synchronized PhaseTwoState processPhaseTwo (
 			PaxosInstance entry, int ballot, int value) {
 		boolean accepted = false;
-		if ((this.scheduler == null || (this.scheduler.validBallot (ballot) && this.scheduler.isacceptor (this.my_id, ballot))) && ballot >= this.current_ballot) {
+		if ((this.scheduler == null || this.scheduler.isacceptor (this.my_id, ballot)) && ballot >= this.current_ballot) {
 			this.setCurrentBallot (ballot);
 			accepted = entry.accept (ballot, value);
 			if (accepted)
@@ -201,7 +199,7 @@ public final class DidaTradeServerState {
 	}
 
 	public synchronized boolean canOpenFastRound (int ballot) {
-		return this.scheduler != null && this.scheduler.validBallot (ballot) && ballot >= this.current_ballot
+		return this.scheduler != null && ballot >= this.current_ballot
 				&& this.scheduler.fastpaxos (ballot)
 				&& this.scheduler.isacceptor (this.my_id, ballot);
 	}

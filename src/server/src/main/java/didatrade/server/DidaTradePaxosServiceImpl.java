@@ -80,10 +80,6 @@ public class DidaTradePaxosServiceImpl extends DidaTradePaxosServiceGrpc.DidaTra
 		this.server_state.applyDebugState ();
 
 		int value = request.getValue ();
-		if (!this.server_state.scheduler.validBallot (ballot)) {
-			responseObserver.onError (io.grpc.Status.INVALID_ARGUMENT.asRuntimeException ());
-			return;
-		}
 		if (this.server_state.scheduler.dynamicMembership ()
 				&& request.getSenderid () != this.server_state.scheduler.leader (ballot)) {
 			responseObserver.onError (io.grpc.Status.FAILED_PRECONDITION.asRuntimeException ());
@@ -157,7 +153,7 @@ public class DidaTradePaxosServiceImpl extends DidaTradePaxosServiceGrpc.DidaTra
 
 		this.server_state.applyDebugState ();
 
-		if (this.server_state.scheduler.validBallot (ballot) && this.server_state.scheduler.isacceptor (server_id, ballot)) {
+		if (this.server_state.scheduler.isacceptor (server_id, ballot)) {
 			PaxosInstance entry = this.server_state.paxos_log.testAndSetEntry (instance);
 			this.server_state.setCurrentBallot (ballot);
 			// Classic Phase 2 and direct Fast accepts have different quorum sizes.
