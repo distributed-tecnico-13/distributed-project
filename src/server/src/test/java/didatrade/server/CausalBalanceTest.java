@@ -5,8 +5,10 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertTimeoutPreemptively;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.fail;
 
 import java.time.Duration;
+import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.Future;
@@ -36,7 +38,7 @@ class CausalBalanceTest {
 		state.trade_manager.add_user (7, 100, 10);
 
 		int balance = assertTimeoutPreemptively (Duration.ofSeconds (2),
-				() -> state.getBalance (-1, 7));
+				() -> state.getBalance (-1, 7).balance ());
 		assertEquals (100, balance);
 	}
 
@@ -47,7 +49,7 @@ class CausalBalanceTest {
 		addUserRequest (state, 101, 7, 100);
 		decide (state, 0, 101);
 
-		Future<Integer> balance = this.rpc_threads.submit ( () -> state.getBalance (0, 7));
+		Future<Integer> balance = this.rpc_threads.submit ( () -> state.getBalance (0, 7).balance ());
 		assertStillBlocked (balance);
 
 		assertEquals (1, executor.drain ());
@@ -62,13 +64,48 @@ class CausalBalanceTest {
 		addUserRequest (state, 201, 8, 200);
 		decide (state, 1, 201);
 
-		Future<Integer> balance = this.rpc_threads.submit ( () -> state.getBalance (1, 8));
+		Future<Integer> balance = this.rpc_threads.submit ( () -> state.getBalance (1, 8).balance ());
 		assertEquals (0, executor.drain ());
 		assertStillBlocked (balance);
 
 		decide (state, 0, 101);
 		assertEquals (2, executor.drain ());
 		assertEquals (200, balance.get (2, TimeUnit.SECONDS));
+	}
+
+	@Test
+	void balanceCannotObserveEffectBeforeInstanceIsPublished () throws Exception {
+		DidaTradeServerState state = newState ();
+		TradeManagerPausingAfterAcquire trades = new TradeManagerPausingAfterAcquire ();
+		state.trade_manager = trades;
+		OrderedPaxosExecutor executor = new OrderedPaxosExecutor (state);
+		addUserRequest (state, 101, 7, 100);
+		decide (state, 0, 101);
+		assertEquals (1, executor.drain ());
+
+		addBuyRequest (state, 201, 7, 50);
+		decide (state, 1, 201);
+		Future<Integer> drained = this.rpc_threads.submit (executor::drain);
+		assertTrue (trades.awaitApplied ());
+
+		Future<DidaTradeServerState.BalanceResult> balance = this.rpc_threads.submit (
+				() -> state.getBalance (-1, 7));
+		try {
+			Thread.sleep (STILL_BLOCKED_MILLIS);
+			if (balance.isDone ()) {
+				DidaTradeServerState.BalanceResult early = balance.get ();
+				fail ("balance " + early.balance () + " was read at instance "
+						+ early.lastExecutedInstance ()
+						+ " while slot 1 was applied but not yet published");
+			}
+			trades.release ();
+			DidaTradeServerState.BalanceResult snapshot = balance.get (2, TimeUnit.SECONDS);
+			assertEquals (50, snapshot.balance ());
+			assertEquals (1, snapshot.lastExecutedInstance ());
+			assertEquals (1, drained.get (2, TimeUnit.SECONDS));
+		} finally {
+			trades.release ();
+		}
 	}
 
 	@Test
@@ -164,6 +201,43 @@ class CausalBalanceTest {
 				new DidaTradeCommand (DidaTradeAction.ADDUSER, user_id, cash, 10));
 		state.req_history.addToPending (request_id, record);
 		return record;
+	}
+
+	private static RequestRecord addBuyRequest (
+			DidaTradeServerState state, int request_id, int user_id, int fraction) {
+		RequestRecord record = new RequestRecord (request_id,
+				new DidaTradeCommand (DidaTradeAction.BUY, user_id, fraction));
+		state.req_history.addToPending (request_id, record);
+		return record;
+	}
+
+	// Pauses after the wallet changes and before acquire returns, which is the gap before
+	// the executor publishes last_executed_instance.
+	private static final class TradeManagerPausingAfterAcquire extends TradeManager {
+		private final CountDownLatch applied = new CountDownLatch (1);
+		private final CountDownLatch continue_execution = new CountDownLatch (1);
+
+		@Override
+		public boolean acquire (int user_id, int fraction) {
+			boolean result = super.acquire (user_id, fraction);
+			this.applied.countDown ();
+			try {
+				if (!this.continue_execution.await (5, TimeUnit.SECONDS))
+					throw new IllegalStateException ("execution was not released");
+			} catch (InterruptedException e) {
+				Thread.currentThread ().interrupt ();
+				throw new IllegalStateException ("interrupted while holding an applied buy", e);
+			}
+			return result;
+		}
+
+		boolean awaitApplied () throws InterruptedException {
+			return this.applied.await (2, TimeUnit.SECONDS);
+		}
+
+		void release () {
+			this.continue_execution.countDown ();
+		}
 	}
 
 	private static void decide (DidaTradeServerState state, int instance, int request_id) {

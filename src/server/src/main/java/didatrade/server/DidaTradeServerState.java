@@ -101,9 +101,14 @@ public final class DidaTradeServerState {
 		return ballot >= 0 && ballot == this.current_ballot && this.scheduler.leader (ballot) == this.my_id;
 	}
 
-	public int getBalance (int minInstance, int userid) {
+	public record BalanceResult(int balance, int lastExecutedInstance) {
+	}
+
+	public BalanceResult getBalance (int minInstance, int userid) {
 		this.waitForInstanceExecution (minInstance);
-		return this.trade_manager.balance (userid);
+		synchronized (this) {
+			return new BalanceResult (this.trade_manager.balance (userid), this.last_executed_instance);
+		}
 	}
 
 	synchronized void waitForInstanceExecution (int instance) {
