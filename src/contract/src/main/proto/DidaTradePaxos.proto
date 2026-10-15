@@ -60,7 +60,6 @@ message PhaseTwoRequest {
   int32 instance        = 1;
   int32 requestballot   = 2;
   int32 value           = 3;
-  int32 senderid = 5;
 }
 
 message PhaseTwoReply {

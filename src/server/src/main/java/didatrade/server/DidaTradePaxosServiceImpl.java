@@ -80,11 +80,6 @@ public class DidaTradePaxosServiceImpl extends DidaTradePaxosServiceGrpc.DidaTra
 		this.server_state.applyDebugState ();
 
 		int value = request.getValue ();
-		if (this.server_state.scheduler.dynamicMembership ()
-				&& request.getSenderid () != this.server_state.scheduler.leader (ballot)) {
-			responseObserver.onError (io.grpc.Status.FAILED_PRECONDITION.asRuntimeException ());
-			return;
-		}
 		PaxosInstance entry = this.server_state.paxos_log.testAndSetEntry (instance);
 		DidaTradeServerState.PhaseTwoState phase_two = this.server_state.processPhaseTwo (entry, ballot, value);
 
