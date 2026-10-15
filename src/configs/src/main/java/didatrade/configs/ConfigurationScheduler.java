@@ -62,9 +62,15 @@ public class ConfigurationScheduler {
 		return s.quorum (ballot);
 	}
 
-	public int classicQuorum (int ballot) { return s.classicQuorum (ballot); }
-	public int fastQuorum (int ballot) { return s.fastQuorum (ballot); }
-	public int recoveryQuorum (int ballot) { return s.recoveryQuorum (ballot); }
+	public int classicQuorum (int ballot) {
+		return s.classicQuorum (ballot);
+	}
+	public int fastQuorum (int ballot) {
+		return s.fastQuorum (ballot);
+	}
+	public int recoveryQuorum (int ballot) {
+		return s.recoveryQuorum (ballot);
+	}
 
 	public boolean fastpaxos (int ballot) {
 		return s.fastpaxos (ballot);

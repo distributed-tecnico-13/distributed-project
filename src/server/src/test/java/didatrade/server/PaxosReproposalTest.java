@@ -21,7 +21,7 @@ class PaxosReproposalTest {
 		// Phase 2 failed before a quorum: release the worker but preserve the value.
 		long retry_at = entry.releaseClaim (5, 1_000_000_000L);
 		assertFalse (entry.tryClaim (5, retry_at - 1)); // backoff still active
-		assertTrue (entry.tryClaim (5, retry_at));      // same-ballot retry allowed
+		assertTrue (entry.tryClaim (5, retry_at)); // same-ballot retry allowed
 		assertEquals (101, entry.phaseTwoValueFor (5, 999)); // value cannot change
 
 		// Successful higher-ballot reproposal must not be repeated in this ballot.

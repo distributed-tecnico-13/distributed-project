@@ -21,10 +21,16 @@ public abstract class Schedule {
 	abstract Integer quorum (int ballot);
 
 	// The existing quorum remains the classic Phase-2 majority.
-	int classicQuorum (int ballot) { return this.quorum (ballot); }
+	int classicQuorum (int ballot) {
+		return this.quorum (ballot);
+	}
 	// Fast and Phase-1 recovery thresholds may differ from the classic quorum.
-	int fastQuorum (int ballot) { return this.quorum (ballot); }
-	int recoveryQuorum (int ballot) { return this.quorum (ballot); }
+	int fastQuorum (int ballot) {
+		return this.quorum (ballot);
+	}
+	int recoveryQuorum (int ballot) {
+		return this.quorum (ballot);
+	}
 
 	abstract boolean fastpaxos (int ballot);
 }

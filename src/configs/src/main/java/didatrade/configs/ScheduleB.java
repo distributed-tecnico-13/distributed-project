@@ -46,10 +46,14 @@ public class ScheduleB extends Schedule {
 	}
 
 	@Override
-	int fastQuorum (int ballot) { return 4; }
+	int fastQuorum (int ballot) {
+		return 4;
+	}
 
 	@Override
-	int recoveryQuorum (int ballot) { return 3; }
+	int recoveryQuorum (int ballot) {
+		return 3;
+	}
 
 	public boolean fastpaxos (int ballot) {
 		return true;

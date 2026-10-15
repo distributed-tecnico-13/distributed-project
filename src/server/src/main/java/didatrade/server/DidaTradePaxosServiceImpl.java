@@ -132,6 +132,12 @@ public class DidaTradePaxosServiceImpl extends DidaTradePaxosServiceGrpc.DidaTra
 				System.out.println ("Paxos learner: waking up the main loop");
 				this.server_state.updateCompletedBallot (ballot);
 				this.server_state.main_loop.wakeup ();
+			} else if (!request.getClassic ()
+					&& entry.cannotReachQuorum (ballot, decision_quorum,
+							this.server_state.scheduler.acceptors (ballot).size ())) {
+				// Debug aid only: ballots change via the console, never automatically.
+				System.out.println ("Paxos learner: instance " + instance + " collided in Fast ballot "
+						+ ballot + ", no value can reach the Fast quorum; needs a new ballot");
 			}
 		}
 

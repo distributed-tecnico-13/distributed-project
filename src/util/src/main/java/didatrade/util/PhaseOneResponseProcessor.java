@@ -130,8 +130,7 @@ public class PhaseOneResponseProcessor
 
 		int missing_acceptors = Math.max (0, this.acceptors.size () - this.responders.size ());
 		List<Integer> possible_chosen_values = observations.value_count.entrySet ().stream ()
-				.filter (entry -> entry.getValue () + missing_acceptors
-						>= this.scheduler.fastQuorum (observations.ballot))
+				.filter (entry -> entry.getValue () + missing_acceptors >= this.scheduler.fastQuorum (observations.ballot))
 				.map (Map.Entry::getKey)
 				.sorted ()
 				.toList ();

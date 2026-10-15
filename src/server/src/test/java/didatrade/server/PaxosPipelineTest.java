@@ -193,29 +193,28 @@ class PaxosPipelineTest {
 	}
 
 	@Test
-	void adoptedPhaseOneValueIsNotReportedAsLocallyAccepted() {
-		PaxosLog log = new PaxosLog();
+	void adoptedPhaseOneValueIsNotReportedAsLocallyAccepted () {
+		PaxosLog log = new PaxosLog ();
 
-		log.adopt(4, 123);
+		log.adopt (4, 123);
 
-		assertFalse(log.getEntry(4).isAccepted());
-		assertEquals(0, log.getAcceptedEntries().length);
+		assertFalse (log.getEntry (4).isAccepted ());
+		assertEquals (0, log.getAcceptedEntries ().length);
 	}
 
 	@Test
-	void adoptDoesNotOverwriteActualAcceptedHistory() {
-		PaxosLog log = new PaxosLog();
-		PaxosInstance entry = log.testAndSetEntry(4);
+	void adoptDoesNotOverwriteActualAcceptedHistory () {
+		PaxosLog log = new PaxosLog ();
+		PaxosInstance entry = log.testAndSetEntry (4);
 
-		entry.accept(2, 111);
+		entry.accept (2, 111);
 
-		log.adopt(4, 222);
+		log.adopt (4, 222);
 
-		PaxosInstance.AcceptedSnapshot accepted =
-			entry.getAcceptedSnapshot();
+		PaxosInstance.AcceptedSnapshot accepted = entry.getAcceptedSnapshot ();
 
-		assertEquals(111, accepted.value);
-		assertEquals(2, accepted.valballot);
+		assertEquals (111, accepted.value);
+		assertEquals (2, accepted.valballot);
 	}
 
 	private static void await (CountDownLatch latch) {
