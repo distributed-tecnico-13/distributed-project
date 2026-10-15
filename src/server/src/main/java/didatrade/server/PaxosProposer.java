@@ -27,7 +27,6 @@ final class PaxosProposer {
 	private int prepared_ballot = -1;
 	private int recovery_highest_instance = -1;
 	private int opened_fast_ballot = -1;
-	private int transferred_ballot = -1;
 
 	PaxosProposer(DidaTradeServerState state) {
 		this.server_state = state;
@@ -140,7 +139,7 @@ final class PaxosProposer {
 	}
 
 	boolean transferComplete (int ballot) {
-		return this.transferred_ballot == ballot;
+		return this.server_state.getCompletedBallot () == ballot;
 	}
 
 	private boolean recoverCommands (int ballot) {
@@ -201,7 +200,6 @@ final class PaxosProposer {
 			this.server_state.setCurrentBallot (processor.getMaxballot ());
 		if (!processor.getAccepted () || !this.server_state.canProposeFor (ballot))
 			return false;
-		this.transferred_ballot = ballot;
 		this.server_state.setCompletedBallot (ballot);
 		return true;
 	}
