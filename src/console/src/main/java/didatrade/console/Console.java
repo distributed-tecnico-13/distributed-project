@@ -134,7 +134,6 @@ public class Console {
 						if (ballot_number < this.getLastBallot ())
 							System.out.println ("usage: ballot must be larger or equal than " + last_ballot + ".\n");
 						else {
-							this.setLastBallot (ballot_number);
 							try {
 								replica = Integer.parseInt (parameter2);
 
@@ -162,6 +161,7 @@ public class Console {
 											Iterator<DidaTradeMaster.NewBallotReply> newballot_iterator = newballot_responses.iterator ();
 											DidaTradeMaster.NewBallotReply newballot_reply = newballot_iterator.next ();
 											int completed = newballot_reply.getCompletedballot ();
+											setLastBallot (ballot_number);
 											System.out.println ("reply received to new ballot request for ballot = " + ballot_number + " with completed = "
 													+ completed);
 											setBallotCompleted (completed);
@@ -182,7 +182,6 @@ public class Console {
 						if (ballot_number < this.getLastBallot ())
 							System.out.println ("usage: ballot must be larger or equal than " + last_ballot + ".\n");
 						else {
-							this.setLastBallot (ballot_number);
 							try {
 								replica = Integer.parseInt (parameter2);
 
@@ -208,6 +207,8 @@ public class Console {
 										if (activate_responses.size () >= 1) {
 											Iterator<DidaTradeMaster.ActivateReply> activate_iterator = activate_responses.iterator ();
 											DidaTradeMaster.ActivateReply activate_reply = activate_iterator.next ();
+											if (activate_reply.getAck ())
+												setLastBallot (ballot_number);
 											System.out.println ("reply received to activate request for ballot = " + ballot_number + " with ack = "
 													+ activate_reply.getAck ());
 										} else
