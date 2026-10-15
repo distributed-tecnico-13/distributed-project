@@ -13,9 +13,9 @@ import didatrade.DidaTradePaxos;
 import didatrade.util.CollectorStreamObserver;
 import didatrade.util.FastRoundResponseProcessor;
 import didatrade.util.GenericResponseCollector;
-import didatrade.util.GenericResponseProcessor;
 import didatrade.util.PhaseOneResponseProcessor;
 import didatrade.util.PhaseTwoResponseProcessor;
+import didatrade.util.StateTransferResponseProcessor;
 
 /** Phase 1 once per ballot, classic recovery, and the transition into a Fast round. */
 final class PaxosProposer {
@@ -156,29 +156,18 @@ final class PaxosProposer {
 					.setInstance (slot).setValue (value).setValballot (ballot).setClassic (true));
 		}
 		DidaTradePaxos.InstallStateRequest request = builder.build ();
-		Set<Integer> acceptors = new java.util.HashSet<> (this.server_state.scheduler.acceptors (ballot));
-		Set<Integer> acknowledgements = new java.util.HashSet<> ();
-		int quorum = this.server_state.scheduler.classicQuorum (ballot);
 		List<Integer> learners = this.server_state.scheduler.learners (ballot);
-		GenericResponseProcessor<DidaTradePaxos.InstallStateReply> processor = new GenericResponseProcessor<> () {
-			@Override
-			public boolean onNext (ArrayList<DidaTradePaxos.InstallStateReply> all, DidaTradePaxos.InstallStateReply last) {
-				if (last.getMaxballot () > ballot) {
-					server_state.setCurrentBallot (last.getMaxballot ());
-					return true;
-				}
-				if (last.getAccepted () && acceptors.contains (last.getServerid ()))
-					acknowledgements.add (last.getServerid ());
-				return acknowledgements.size () >= quorum;
-			}
-		};
+		StateTransferResponseProcessor processor = new StateTransferResponseProcessor (
+				ballot, this.server_state.scheduler.classicQuorum (ballot), this.server_state.scheduler.acceptors (ballot));
 		GenericResponseCollector<DidaTradePaxos.InstallStateReply> collector = new GenericResponseCollector<> (
 				new ArrayList<> (), learners.size (), processor);
 		for (int learner : learners)
 			this.server_state.async_stubs[learner].withDeadlineAfter (RPC_TIMEOUT_SECONDS, TimeUnit.SECONDS)
 					.installstate (request, new CollectorStreamObserver<> (collector));
 		collector.waitUntilDone ();
-		if (acknowledgements.size () < quorum || !this.server_state.canProposeFor (ballot))
+		if (processor.getMaxballot () > ballot)
+			this.server_state.setCurrentBallot (processor.getMaxballot ());
+		if (!processor.getAccepted () || !this.server_state.canProposeFor (ballot))
 			return false;
 		this.transferred_ballot = ballot;
 		this.server_state.setCompletedBallot (ballot);
