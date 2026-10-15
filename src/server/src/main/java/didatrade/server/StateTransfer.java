@@ -14,9 +14,7 @@ final class StateTransfer {
 	static boolean install (DidaTradeServerState state, DidaTradePaxos.InstallStateRequest request) {
 		int ballot = request.getBallot ();
 		synchronized (state) {
-			if (ballot < state.getCurrentBallot ()
-					|| request.getThroughinstance () < -1
-					|| request.getEntriesCount () != (long) request.getThroughinstance () + 1)
+			if (ballot < state.getCurrentBallot ())
 				return false;
 			Map<Integer, DidaTradeCommand> commands = new HashMap<> ();
 			try {

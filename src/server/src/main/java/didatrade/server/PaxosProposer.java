@@ -177,8 +177,7 @@ final class PaxosProposer {
 		if (!this.recoverCommands (ballot) || !this.server_state.canProposeFor (ballot))
 			return false;
 		DidaTradePaxos.InstallStateRequest.Builder builder = DidaTradePaxos.InstallStateRequest.newBuilder ()
-				.setBallot (ballot)
-				.setThroughinstance (this.recoveryLimit (ballot) - 1);
+				.setBallot (ballot);
 		Set<Integer> commands = new java.util.HashSet<> ();
 		for (int slot = 0; slot < this.recoveryLimit (ballot); slot++) {
 			int value = this.server_state.paxos_log.getEntry (slot).getCommandId ();

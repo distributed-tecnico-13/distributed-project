@@ -194,7 +194,7 @@ class DynamicMembershipIntegrationTest {
 			for (int id : List.of (0, 1, 2))
 				assertTrue (c.states[id].processPhaseOne (2).accepted);
 			DidaTradePaxos.InstallStateRequest empty = DidaTradePaxos.InstallStateRequest.newBuilder ()
-					.setBallot (2).setThroughinstance (-1).build ();
+					.setBallot (2).build ();
 			for (int id : List.of (2, 5, 6))
 				assertTrue (StateTransfer.install (c.states[id], empty));
 			assertFalse (c.states[3].membershipTransferred ());
