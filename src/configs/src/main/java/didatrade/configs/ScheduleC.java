@@ -4,6 +4,8 @@ import java.util.*;
 import didatrade.configs.Schedule; // ignore-unused-import
 
 public class ScheduleC extends Schedule {
+	public static final int MEMBERSHIP_CHANGE_BALLOT = 2;
+
 	private List<Integer> all_participants = Arrays.asList (0, 1, 2, 3, 4, 5, 6);
 	private List<Integer> all_learners = Arrays.asList (0, 1, 2, 3, 4, 5, 6);
 	private List<Integer> acceptors_start = Arrays.asList (0, 1, 2, 3, 4);
@@ -18,16 +20,16 @@ public class ScheduleC extends Schedule {
 	}
 
 	public List<Integer> acceptors (int ballot) {
-		if (ballot < 2)
+		if (ballot < MEMBERSHIP_CHANGE_BALLOT)
 			return this.acceptors_start;
 		else
 			return this.acceptors_end;
 	}
 
 	public List<Integer> acceptorsinrange (int low_ballot, int high_ballot) {
-		if (high_ballot < 2)
+		if (high_ballot < MEMBERSHIP_CHANGE_BALLOT)
 			return this.acceptors_start;
-		else if (low_ballot >= 2)
+		else if (low_ballot >= MEMBERSHIP_CHANGE_BALLOT)
 			return this.acceptors_end;
 		else
 			return this.acceptors_all;
@@ -42,14 +44,14 @@ public class ScheduleC extends Schedule {
 	}
 
 	public boolean isacceptor (int node, int ballot) {
-		if (ballot < 2)
+		if (ballot < MEMBERSHIP_CHANGE_BALLOT)
 			return this.acceptors_start.contains (node);
 		else
 			return this.acceptors_end.contains (node);
 	}
 
 	public Integer leader (int ballot) {
-		if (ballot < 2)
+		if (ballot < MEMBERSHIP_CHANGE_BALLOT)
 			return ballot;
 		else if (ballot < 5)
 			return ballot + 1;
@@ -67,6 +69,6 @@ public class ScheduleC extends Schedule {
 	}
 
 	public boolean fastpaxos (int ballot) {
-		return ((ballot == 0) || (ballot == 2));
+		return ((ballot == 0) || (ballot == MEMBERSHIP_CHANGE_BALLOT));
 	}
 }

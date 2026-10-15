@@ -1,5 +1,7 @@
 package didatrade.server;
 
+import static didatrade.configs.ScheduleC.MEMBERSHIP_CHANGE_BALLOT;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -43,7 +45,7 @@ final class PaxosProposer {
 				acceptors, acceptors.size (), ballot, ballot);
 		if (!this.server_state.canProposeFor (ballot))
 			return false;
-		if (this.server_state.scheduler.dynamicMembership () && ballot >= 2 && !phase_one.membership_transferred) {
+		if (this.server_state.scheduler.dynamicMembership () && ballot >= MEMBERSHIP_CHANGE_BALLOT && !phase_one.membership_transferred) {
 			// The new group alone may not resolve old Fast votes. Consult the old
 			// group even when this first attempt could not select a safe value.
 			acceptors = this.server_state.scheduler.acceptorsinrange (0, ballot);

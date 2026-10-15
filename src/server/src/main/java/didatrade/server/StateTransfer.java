@@ -1,5 +1,7 @@
 package didatrade.server;
 
+import static didatrade.configs.ScheduleC.MEMBERSHIP_CHANGE_BALLOT;
+
 import java.util.HashMap;
 import java.util.Map;
 import didatrade.DidaTradePaxos;
@@ -52,7 +54,7 @@ final class StateTransfer {
 			}
 			// The leader sends this only after recovery; it waits for a NEW quorum
 			// to store the marker before acknowledging completion to the console.
-			if (state.scheduler.dynamicMembership () && ballot >= 2)
+			if (state.scheduler.dynamicMembership () && ballot >= MEMBERSHIP_CHANGE_BALLOT)
 				state.noteMembershipTransferred ();
 			return true;
 		}

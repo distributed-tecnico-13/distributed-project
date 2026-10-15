@@ -1,5 +1,7 @@
 package didatrade.util;
 
+import static didatrade.configs.ScheduleC.MEMBERSHIP_CHANGE_BALLOT;
+
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -98,9 +100,9 @@ public class PhaseOneResponseProcessor
 		}
 
 		// A new acceptor's atomic snapshot includes the entire transferred
-		// prefix at ballot >= 2. A retired learner's marker carries no such votes.
+		// prefix in the new configuration. A retired learner's marker carries no such votes.
 		this.membership_transferred |= this.scheduler.dynamicMembership ()
-				&& this.scheduler.isacceptor (server_id, 2) && last_response.getMembershiptransferred ();
+				&& this.scheduler.isacceptor (server_id, MEMBERSHIP_CHANGE_BALLOT) && last_response.getMembershiptransferred ();
 		for (DidaTradePaxos.PhaseOneResponseLogObject response : last_response.getResponseLogObjectsList ()) {
 			if (!this.scheduler.isacceptor (server_id, response.getValballot ()))
 				continue;
@@ -131,8 +133,8 @@ public class PhaseOneResponseProcessor
 		Map<Integer, InstanceResponse> resolved = new HashMap<> ();
 		for (Map.Entry<Integer, AcceptedResponseObserver> instance : this.observations_per_instance.entrySet ()) {
 			// With that certificate, any slot seen ONLY in the old configuration
-			// is an unchosen tail; every old decision is also present at >= 2.
-			if (this.membership_transferred && instance.getValue ().ballot < 2)
+			// is an unchosen tail; every old decision is also present in the new configuration.
+			if (this.membership_transferred && instance.getValue ().ballot < MEMBERSHIP_CHANGE_BALLOT)
 				continue;
 			InstanceResponse resolution = this.resolveInstance (instance.getValue ());
 			if (resolution == null)
