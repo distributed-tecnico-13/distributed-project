@@ -67,8 +67,10 @@ public class RequestHistory {
 			throw new IllegalArgumentException ("Invalid request id");
 		RequestRecord existing = this.getIfExists (id);
 		if (existing != null) {
-			if (!CommandTransfer.same (existing.getRequest (), command))
-				throw new IllegalArgumentException ("Conflicting payload for request " + id);
+			DidaTradeCommand original = existing.getRequest ();
+			if (original.getAction () != command.getAction () || original.getUserId () != command.getUserId ()
+					|| original.getQuantity () != command.getQuantity () || original.getStock () != command.getStock ())
+				throw new IllegalArgumentException ("Conflicting command for request " + id);
 			return existing;
 		}
 		RequestRecord record = new RequestRecord (id, command);

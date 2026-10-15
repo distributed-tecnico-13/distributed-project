@@ -13,6 +13,7 @@ class StateTransferTest {
 	void repeatedInstallationPreservesWaitersAndDoesNotRepeatTrade () {
 		DidaTradeServerState s = state (5);
 		RequestRecord waiter = s.req_history.installIfAbsent (101, new DidaTradeCommand (DidaTradeAction.ADDUSER, 77, 100, 10));
+		s.req_history.installIfAbsent (201, new DidaTradeCommand (DidaTradeAction.BUY, 77, 50));
 		assertTrue (StateTransfer.install (s, prefix ()));
 		assertSame (waiter, s.req_history.getIfExists (101));
 		assertTrue (s.membershipTransferred ());
@@ -26,7 +27,7 @@ class StateTransferTest {
 	@Test
 	void partialOrStaleInstallationCannotPublishTheMarker () {
 		DidaTradeServerState s = state (5);
-		assertFalse (StateTransfer.install (s, prefix ().toBuilder ().clearCommands ().build ()));
+		assertFalse (StateTransfer.install (s, prefix ().toBuilder ().clearEntries ().build ()));
 		assertFalse (s.membershipTransferred ());
 		assertEquals (0, s.paxos_log.length ());
 		s.setCurrentBallot (3);
@@ -36,6 +37,8 @@ class StateTransferTest {
 	@Test
 	void retiredAcceptorCanPromiseAndLearnButCannotVote () {
 		DidaTradeServerState s = state (0);
+		s.req_history.installIfAbsent (101, new DidaTradeCommand (DidaTradeAction.ADDUSER, 77, 100, 10));
+		s.req_history.installIfAbsent (201, new DidaTradeCommand (DidaTradeAction.BUY, 77, 50));
 		assertTrue (s.processPhaseOne (2).accepted);
 		assertFalse (s.processPhaseTwo (s.paxos_log.testAndSetEntry (0), 2, 101).accepted);
 		assertTrue (StateTransfer.install (s, prefix ()));
@@ -44,12 +47,31 @@ class StateTransferTest {
 		assertFalse (s.paxos_log.getEntry (0).isAccepted ());
 	}
 	@Test
-	void conflictingPayloadDoesNotReplaceAnExistingRequest () {
+	void invalidCommandIdsAreRejectedBeforeInstallation () {
 		DidaTradeServerState s = state (5);
-		RequestRecord existing = s.req_history.installIfAbsent (101, new DidaTradeCommand (DidaTradeAction.ADDUSER, 77, 999, 10));
-		assertFalse (StateTransfer.install (s, prefix ()));
-		assertSame (existing, s.req_history.getIfExists (101));
+		for (int value : new int[]{CommandIdHelper.ABSENT_VALUE, -3}) {
+			DidaTradePaxos.InstallStateRequest invalid = prefix ().toBuilder ()
+					.setEntries (0, prefix ().getEntries (0).toBuilder ().setValue (value)).build ();
+			assertFalse (StateTransfer.install (s, invalid));
+		}
+		assertEquals (0, s.paxos_log.length ());
 		assertFalse (s.membershipTransferred ());
+	}
+	@Test
+	void executionWaitsForClientCommandsWithoutSkippingTheMissingSlot () {
+		DidaTradeServerState s = state (5);
+		assertTrue (StateTransfer.install (s, prefix ()));
+		assertTrue (s.membershipTransferred ());
+		assertNull (s.req_history.getIfExists (101));
+		OrderedPaxosExecutor executor = new OrderedPaxosExecutor (s);
+		assertEquals (0, executor.drain ());
+		s.req_history.installIfAbsent (201, new DidaTradeCommand (DidaTradeAction.BUY, 77, 50));
+		assertEquals (0, executor.drain ());
+		assertEquals (-1, s.getLastExecutedInstance ());
+		s.req_history.installIfAbsent (101, new DidaTradeCommand (DidaTradeAction.ADDUSER, 77, 100, 10));
+		assertEquals (2, executor.drain ());
+		assertEquals (50, s.trade_manager.balance (77));
+		assertEquals (1, s.getLastExecutedInstance ());
 	}
 	@Test
 	void incompleteAndConflictingPrefixesAreRejectedBeforeInstallation () {
@@ -133,8 +155,6 @@ class StateTransferTest {
 	static DidaTradePaxos.InstallStateRequest prefix () {
 		return DidaTradePaxos.InstallStateRequest.newBuilder ().setBallot (2).setSenderid (3).setThroughinstance (1)
 				.addEntries (DidaTradePaxos.PhaseOneResponseLogObject.newBuilder ().setInstance (0).setValue (101).setValballot (2))
-				.addEntries (DidaTradePaxos.PhaseOneResponseLogObject.newBuilder ().setInstance (1).setValue (201).setValballot (2))
-				.addCommands (DidaTradePaxos.CommandPayload.newBuilder ().setRequestid (101).setAction ("ADDUSER").setUserid (77).setQuantity (100).setStock (10))
-				.addCommands (DidaTradePaxos.CommandPayload.newBuilder ().setRequestid (201).setAction ("BUY").setUserid (77).setQuantity (50)).build ();
+				.addEntries (DidaTradePaxos.PhaseOneResponseLogObject.newBuilder ().setInstance (1).setValue (201).setValballot (2)).build ();
 	}
 }
