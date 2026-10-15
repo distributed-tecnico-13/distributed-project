@@ -36,21 +36,23 @@ class DynamicPhaseOneTest {
 			DidaTradePaxos.PhaseOneReply.Builder r = DidaTradePaxos.PhaseOneReply.newBuilder ()
 					.setServerid (id).setAccepted (true).setRequestballot (3).setMaxballot (3)
 					.setMembershiptransferred (id == 0);
-			if (id == 1 || id == 2) {
-				int value = id * 100 + 1;
+			if (id < 3) {
+				int value = id == 2 ? 201 : 101;
 				r.addResponseLogObjects (DidaTradePaxos.PhaseOneResponseLogObject.newBuilder ()
 						.setInstance (0).setValue (value).setValballot (0));
 			}
-			assertFalse (p.onNext (new ArrayList<> (), r.build ()));
+			assertEquals (id == 6, p.onNext (new ArrayList<> (), r.build ()));
 		}
 		assertFalse (p.membershipTransferred ());
-		assertFalse (p.getAccepted ());
+		assertTrue (p.getAccepted ());
+		assertArrayEquals (new int[]{0}, p.instances ());
+		assertEquals (101, p.commandFor (0));
 	}
 
 	@Test
-	void transferMarkerCannotDiscardAmbiguousNewFastVotes () {
+	void transferMarkerCannotDiscardNewFastVotes () {
 		PhaseOneResponseProcessor p = new PhaseOneResponseProcessor (new ConfigurationScheduler ('C'), 3);
-		for (int id : new int[]{2, 3, 4, 5}) {
+		for (int id : new int[]{2, 3, 4}) {
 			DidaTradePaxos.PhaseOneReply.Builder r = DidaTradePaxos.PhaseOneReply.newBuilder ()
 					.setServerid (id).setAccepted (true).setRequestballot (3).setMaxballot (3)
 					.setMembershiptransferred (id == 4);
@@ -59,7 +61,7 @@ class DynamicPhaseOneTest {
 				r.addResponseLogObjects (DidaTradePaxos.PhaseOneResponseLogObject.newBuilder ()
 						.setInstance (0).setValue (value).setValballot (2));
 			}
-			assertEquals (id == 5, p.onNext (new ArrayList<> (), r.build ()));
+			assertEquals (id == 4, p.onNext (new ArrayList<> (), r.build ()));
 		}
 		assertEquals (101, p.commandFor (0));
 	}
@@ -95,22 +97,18 @@ class DynamicPhaseOneTest {
 		assertEquals (101, p.commandFor (0));
 	}
 	@Test
-	void ambiguousFastHistoryWaitsForTheRemainingOldAcceptor () {
+	void splitOldFastHistoryRecoversWithThreeOldAndThreeNewResponders () {
 		PhaseOneResponseProcessor p = new PhaseOneResponseProcessor (new ConfigurationScheduler ('C'), 2, 0);
-		for (int id : new int[]{5, 0, 1, 2, 3}) {
+		for (int id : new int[]{5, 6, 0, 1, 2}) {
 			DidaTradePaxos.PhaseOneReply.Builder r = DidaTradePaxos.PhaseOneReply.newBuilder ()
 					.setServerid (id).setAccepted (true).setRequestballot (2).setMaxballot (2);
-			if (id != 5) {
-				int value = id % 2 == 0 ? 101 : 201;
+			if (id < 3) {
+				int value = id == 1 ? 201 : 101;
 				r.addResponseLogObjects (DidaTradePaxos.PhaseOneResponseLogObject.newBuilder ()
 						.setInstance (0).setValue (value).setValballot (0));
 			}
-			assertFalse (p.onNext (new ArrayList<> (), r.build ()));
+			assertEquals (id == 2, p.onNext (new ArrayList<> (), r.build ()));
 		}
-		DidaTradePaxos.PhaseOneReply last = DidaTradePaxos.PhaseOneReply.newBuilder ()
-				.setServerid (4).setAccepted (true).setRequestballot (2).setMaxballot (2)
-				.addResponseLogObjects (DidaTradePaxos.PhaseOneResponseLogObject.newBuilder ().setInstance (0).setValue (101).setValballot (0)).build ();
-		assertTrue (p.onNext (new ArrayList<> (), last));
 		assertEquals (101, p.commandFor (0));
 	}
 	private static boolean send (PhaseOneResponseProcessor p, int id, boolean history) {

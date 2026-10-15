@@ -61,6 +61,11 @@ public class ScheduleC extends Schedule {
 		return 3;
 	}
 
+	@Override
+	int fastQuorum (int ballot) {
+		return 4;
+	}
+
 	public boolean fastpaxos (int ballot) {
 		return ((ballot == 0) || (ballot == 2));
 	}

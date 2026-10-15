@@ -148,23 +148,23 @@ class DynamicMembershipIntegrationTest {
 
 	@Test
 	@Timeout(20)
-	void directMembershipChangeRecoversAmbiguousOldFastVotes () throws Exception {
+	void directMembershipChangePreservesOldFastQuorum () throws Exception {
 		try (Cluster c = new Cluster ()) {
-			// A was chosen by the old Fast majority. The new group sees only
-			// A at 2 and B at 3,4: it needs replies from old-only members 0,1.
+			// A was chosen by four old Fast acceptors. The first new majority
+			// sees A at 2,3 and B at 4; recovery must preserve A.
 			c.rememberClientCommand (101, new DidaTradeCommand (DidaTradeAction.ADDUSER, 77, 100, 10));
 			c.rememberClientCommand (201, new DidaTradeCommand (DidaTradeAction.ADDUSER, 88, 100, 10));
 			for (int id = 0; id < 5; id++) {
-				int request = id < 3 ? 101 : 201;
+				int request = id < 4 ? 101 : 201;
 				assertTrue (c.states[id].openFastRound (0));
 				assertTrue (c.states[id].processFastVote (request).accepted);
 			}
 			// Force the first new majority to be 2,3,4, so it sees both values.
-			// The other new members have no evidence that could resolve this.
+			// Old-group recovery is still required before the first transfer.
 			c.states[5].setDebugMode (2);
 			c.states[6].setDebugMode (2);
 			c.ballot (2, 3);
-			assertTrue (c.phaseOneCalls[0].get () > 0, "ambiguous new-group responses must trigger old-group recovery");
+			assertTrue (c.phaseOneCalls[0].get () > 0, "the first transfer must recover the old acceptor group");
 			await ( () -> c.states[4].getLastExecutedInstance () >= 0);
 			assertEquals (101, c.states[4].paxos_log.getEntry (0).getCommandId ());
 			assertEquals (100, c.states[4].trade_manager.balance (77));

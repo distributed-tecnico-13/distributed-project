@@ -13,6 +13,31 @@ import io.grpc.stub.StreamObserver;
 class FastPaxosLearnServiceTest {
 
 	@Test
+	void scheduleCRequiresFourFastVotesButThreeClassicVotesInBothConfigurations () {
+		for (int ballot : new int[]{0, 2}) {
+			DidaTradeServerState state = state ();
+			state.scheduler = new ConfigurationScheduler ('C');
+			DidaTradePaxosServiceImpl service = new DidaTradePaxosServiceImpl (state);
+			java.util.List<Integer> acceptors = state.scheduler.acceptors (ballot);
+			for (int i = 0; i < 3; i++)
+				learn (service, 0, ballot, 100, acceptors.get (i));
+			assertFalse (state.paxos_log.getEntry (0).isDecided ());
+			learn (service, 0, ballot, 100, acceptors.get (0));
+			assertFalse (state.paxos_log.getEntry (0).isDecided ());
+			learn (service, 0, ballot, 100, acceptors.get (3));
+			assertTrue (state.paxos_log.getEntry (0).isDecided ());
+			assertEquals (100, state.paxos_log.getEntry (0).getCommandId ());
+
+			for (int i = 0; i < 2; i++)
+				learnClassic (service, 1, ballot, 200, acceptors.get (i));
+			assertFalse (state.paxos_log.getEntry (1).isDecided ());
+			learnClassic (service, 1, ballot, 200, acceptors.get (2));
+			assertTrue (state.paxos_log.getEntry (1).isDecided ());
+			assertEquals (200, state.paxos_log.getEntry (1).getCommandId ());
+		}
+	}
+
+	@Test
 	void matchingFastQuorumDecidesWithoutChangingBallot () {
 		DidaTradeServerState state = state ();
 		DidaTradePaxosServiceImpl service = new DidaTradePaxosServiceImpl (state);
