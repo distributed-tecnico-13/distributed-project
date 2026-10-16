@@ -1,7 +1,6 @@
 package didatrade.configs;
 
 import java.util.*;
-import didatrade.configs.Schedule; // ignore-unused-import
 
 public class ScheduleA extends Schedule {
 	private List<Integer> all_participants = Arrays.asList (0, 1, 2);

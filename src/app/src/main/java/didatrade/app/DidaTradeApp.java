@@ -3,8 +3,6 @@ package didatrade.app;
 
 import java.util.*;
 
-import didatrade.core.User; // ignore-unused-import
-
 import didatrade.DidaTradeMain;
 import didatrade.DidaTradeMainServiceGrpc;
 

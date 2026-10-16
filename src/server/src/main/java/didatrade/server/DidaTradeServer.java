@@ -4,8 +4,6 @@ import io.grpc.BindableService;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
 
-import didatrade.DidaTradeMain; // ignore-unused-import
-import didatrade.DidaTradeMainServiceGrpc; // ignore-unused-import
 import didatrade.server.service.DebugExitInterceptor;
 import didatrade.server.service.DidaTradeMainServiceImpl;
 import didatrade.server.service.DidaTradeMasterServiceImpl;

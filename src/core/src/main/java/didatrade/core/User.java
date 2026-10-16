@@ -1,7 +1,5 @@
 package didatrade.core;
 
-import java.util.*; // ignore-unused-import
-
 public class User {
 	private int id;
 	private int wallet;

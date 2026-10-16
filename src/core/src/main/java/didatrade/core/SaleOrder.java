@@ -1,8 +1,5 @@
 package didatrade.core;
 
-import java.util.*; // ignore-unused-import
-import java.lang.Math; // ignore-unused-import
-
 public class SaleOrder {
 	private User user;
 	private int for_sale;

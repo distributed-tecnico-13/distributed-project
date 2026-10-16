@@ -1,7 +1,6 @@
 package didatrade.configs;
 
 import java.util.*;
-import didatrade.configs.Schedule; // ignore-unused-import
 
 public class ScheduleC extends Schedule {
 	public static final int MEMBERSHIP_CHANGE_BALLOT = 2;

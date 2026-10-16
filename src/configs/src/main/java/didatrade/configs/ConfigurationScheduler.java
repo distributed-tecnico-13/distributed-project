@@ -1,9 +1,6 @@
 package didatrade.configs;
 
 import java.util.*;
-import didatrade.configs.Schedule; // ignore-unused-import
-import didatrade.configs.ScheduleA; // ignore-unused-import
-import didatrade.configs.ScheduleB; // ignore-unused-import
 
 public class ConfigurationScheduler {
 	private Schedule s;

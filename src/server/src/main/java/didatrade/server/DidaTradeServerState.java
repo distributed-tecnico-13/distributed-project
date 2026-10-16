@@ -4,10 +4,7 @@ import java.util.*;
 
 import didatrade.core.*;
 import didatrade.configs.*;
-import didatrade.configs.ConfigurationScheduler; // ignore-unused-import
 
-import didatrade.DidaTradeMain; // ignore-unused-import
-import didatrade.DidaTradePaxos; // ignore-unused-import
 import didatrade.DidaTradePaxosServiceGrpc;
 
 import io.grpc.ManagedChannel;
