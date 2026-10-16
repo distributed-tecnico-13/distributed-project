@@ -18,6 +18,11 @@ import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import io.grpc.Server;
 import io.grpc.ServerBuilder;
+import didatrade.server.request.DidaTradeAction;
+import didatrade.server.request.DidaTradeCommand;
+import didatrade.server.service.DidaTradeMainServiceImpl;
+import didatrade.server.service.DidaTradeMasterServiceImpl;
+import didatrade.server.service.DidaTradePaxosServiceImpl;
 
 @SuppressWarnings("try")
 class DynamicMembershipIntegrationTest {

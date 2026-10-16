@@ -1,9 +1,10 @@
-package didatrade.server;
+package didatrade.server.service;
 
 import didatrade.DidaTradeMaster;
 import didatrade.DidaTradeMasterServiceGrpc;
 
 import io.grpc.stub.StreamObserver;
+import didatrade.server.DidaTradeServerState;
 
 public class DidaTradeMasterServiceImpl extends DidaTradeMasterServiceGrpc.DidaTradeMasterServiceImplBase {
 	DidaTradeServerState server_state;
@@ -23,20 +24,20 @@ public class DidaTradeMasterServiceImpl extends DidaTradeMasterServiceGrpc.DidaT
 		// for debug purposes
 		System.out.println ("Current ballot = " + this.server_state.getCurrentBallot () + " new ballot = " + new_ballot + " completed ballot = " + completed_ballot);
 
-		if (!this.server_state.scheduler.validBallot (new_ballot)
-				|| this.server_state.scheduler.leader (new_ballot) != this.server_state.my_id) {
+		if (!this.server_state.getScheduler ().validBallot (new_ballot)
+				|| this.server_state.getScheduler ().leader (new_ballot) != this.server_state.getMyId ()) {
 			responseObserver.onError (io.grpc.Status.INVALID_ARGUMENT.withDescription ("Send a valid ballot to its leader").asRuntimeException ());
 			return;
 		}
-		if (!this.server_state.scheduler.dynamicMembership ())
+		if (!this.server_state.getScheduler ().dynamicMembership ())
 			this.server_state.setCompletedBallot (completed_ballot);
 
 		if (new_ballot > this.server_state.getCurrentBallot ()
-				|| (this.server_state.scheduler.dynamicMembership () && new_ballot == this.server_state.getCurrentBallot ()
+				|| (this.server_state.getScheduler ().dynamicMembership () && new_ballot == this.server_state.getCurrentBallot ()
 						&& this.server_state.getCompletedBallot () < new_ballot)) {
 			this.server_state.setCurrentBallot (new_ballot);
 
-			this.server_state.main_loop.wakeup ();
+			this.server_state.getMainLoop ().wakeup ();
 
 			completed_ballot = this.server_state.waitForCompletedBallot (new_ballot);
 		} else {

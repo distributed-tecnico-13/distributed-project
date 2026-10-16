@@ -9,6 +9,9 @@ import java.util.Set;
 
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
+import didatrade.server.request.CommandIdHelper;
+import didatrade.server.request.RequestHistory;
+import didatrade.server.request.RequestRecord;
 
 class RequestHistoryInvariantTest {
 

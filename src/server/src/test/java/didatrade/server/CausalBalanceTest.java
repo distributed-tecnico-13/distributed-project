@@ -20,6 +20,12 @@ import org.junit.jupiter.api.Test;
 import didatrade.DidaTradeMain;
 import didatrade.core.TradeManager;
 import io.grpc.stub.StreamObserver;
+import didatrade.server.request.CommandIdHelper;
+import didatrade.server.request.DidaTradeAction;
+import didatrade.server.request.DidaTradeCommand;
+import didatrade.server.request.RequestHistory;
+import didatrade.server.request.RequestRecord;
+import didatrade.server.service.DidaTradeMainServiceImpl;
 
 class CausalBalanceTest {
 

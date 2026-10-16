@@ -14,6 +14,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.junit.jupiter.api.Test;
+import didatrade.server.request.RequestHistory;
+import didatrade.server.request.RequestRecord;
 
 class PaxosPipelineTest {
 

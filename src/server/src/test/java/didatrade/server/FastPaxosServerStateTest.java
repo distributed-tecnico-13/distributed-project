@@ -15,6 +15,7 @@ import java.util.concurrent.Future;
 import org.junit.jupiter.api.Test;
 
 import didatrade.configs.ConfigurationScheduler;
+import didatrade.server.request.RequestHistory;
 
 class FastPaxosServerStateTest {
 

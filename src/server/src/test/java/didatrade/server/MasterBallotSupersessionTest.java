@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import didatrade.DidaTradeMaster;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
+import didatrade.server.service.DidaTradeMasterServiceImpl;
 
 class MasterBallotSupersessionTest {
 	@Test

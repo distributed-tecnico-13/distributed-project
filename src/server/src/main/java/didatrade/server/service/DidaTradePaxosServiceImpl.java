@@ -1,5 +1,5 @@
 
-package didatrade.server;
+package didatrade.server.service;
 
 import didatrade.DidaTradePaxos;
 import didatrade.DidaTradePaxosServiceGrpc;
@@ -7,6 +7,12 @@ import java.util.Arrays;
 import java.util.List;
 
 import io.grpc.stub.StreamObserver;
+import didatrade.server.DidaTradeServerState;
+import didatrade.server.FastPaxosAcceptor;
+import didatrade.server.PaxosInstance;
+import didatrade.server.PaxosLearnerNotifier;
+import didatrade.server.StateTransfer;
+import didatrade.server.request.RequestRecord;
 
 public class DidaTradePaxosServiceImpl extends DidaTradePaxosServiceGrpc.DidaTradePaxosServiceImplBase {
 	DidaTradeServerState server_state;
@@ -28,7 +34,7 @@ public class DidaTradePaxosServiceImpl extends DidaTradePaxosServiceGrpc.DidaTra
 		List<DidaTradePaxos.PhaseOneResponseLogObject> accepted_snapshots;
 		synchronized (this.server_state) {
 			// Snapshot *values*, not mutable instance references, atomically with the promise.
-			accepted_snapshots = Arrays.stream (this.server_state.paxos_log.getAcceptedEntries ())
+			accepted_snapshots = Arrays.stream (this.server_state.getPaxosLog ().getAcceptedEntries ())
 					.map (entry -> {
 						PaxosInstance.AcceptedSnapshot snapshot = entry.getAcceptedSnapshot ();
 						return DidaTradePaxos.PhaseOneResponseLogObject.newBuilder ()
@@ -41,7 +47,7 @@ public class DidaTradePaxosServiceImpl extends DidaTradePaxosServiceGrpc.DidaTra
 		}
 
 		DidaTradePaxos.PhaseOneReply.Builder response_builder = DidaTradePaxos.PhaseOneReply.newBuilder ();
-		response_builder.setServerid (this.server_state.my_id);
+		response_builder.setServerid (this.server_state.getMyId ());
 		response_builder.setRequestballot (ballot);
 		response_builder.setAccepted (phase_one.accepted);
 		response_builder.setMaxballot (phase_one.maxballot);
@@ -66,13 +72,13 @@ public class DidaTradePaxosServiceImpl extends DidaTradePaxosServiceGrpc.DidaTra
 		this.server_state.applyDebugState ();
 
 		int value = request.getValue ();
-		PaxosInstance entry = this.server_state.paxos_log.testAndSetEntry (instance);
+		PaxosInstance entry = this.server_state.getPaxosLog ().testAndSetEntry (instance);
 		DidaTradeServerState.PhaseTwoState phase_two = this.server_state.processPhaseTwo (entry, ballot, value);
 
 		DidaTradePaxos.PhaseTwoReply.Builder response_builder = DidaTradePaxos.PhaseTwoReply.newBuilder ();
 		response_builder.setAccepted (phase_two.accepted);
 		response_builder.setInstance (instance);
-		response_builder.setServerid (this.server_state.my_id);
+		response_builder.setServerid (this.server_state.getMyId ());
 		response_builder.setRequestballot (ballot);
 		response_builder.setMaxballot (phase_two.maxballot);
 
@@ -95,11 +101,11 @@ public class DidaTradePaxosServiceImpl extends DidaTradePaxosServiceGrpc.DidaTra
 		this.server_state.applyDebugState ();
 		boolean accepted = StateTransfer.install (this.server_state, request);
 		observer.onNext (DidaTradePaxos.InstallStateReply.newBuilder ()
-				.setServerid (this.server_state.my_id).setAccepted (accepted)
+				.setServerid (this.server_state.getMyId ()).setAccepted (accepted)
 				.setMaxballot (this.server_state.getCurrentBallot ()).build ());
 		observer.onCompleted ();
-		if (accepted && this.server_state.main_loop != null)
-			this.server_state.main_loop.wakeup ();
+		if (accepted && this.server_state.getMainLoop () != null)
+			this.server_state.getMainLoop ().wakeup ();
 	}
 
 	@Override
@@ -110,7 +116,7 @@ public class DidaTradePaxosServiceImpl extends DidaTradePaxosServiceGrpc.DidaTra
 
 		boolean accepted = this.server_state.openFastRound (ballot, request.getFirstfastinstance ());
 		DidaTradePaxos.OpenFastReply response = DidaTradePaxos.OpenFastReply.newBuilder ()
-				.setServerid (this.server_state.my_id)
+				.setServerid (this.server_state.getMyId ())
 				.setBallot (ballot)
 				.setAccepted (accepted)
 				.setMaxballot (this.server_state.getCurrentBallot ())
@@ -134,29 +140,29 @@ public class DidaTradePaxosServiceImpl extends DidaTradePaxosServiceGrpc.DidaTra
 
 		this.server_state.applyDebugState ();
 
-		if (this.server_state.scheduler.isacceptor (server_id, ballot)) {
-			PaxosInstance entry = this.server_state.paxos_log.testAndSetEntry (instance);
+		if (this.server_state.getScheduler ().isacceptor (server_id, ballot)) {
+			PaxosInstance entry = this.server_state.getPaxosLog ().testAndSetEntry (instance);
 			this.server_state.setCurrentBallot (ballot);
 			// Classic Phase 2 and direct Fast accepts have different quorum sizes.
 			int decision_quorum = request.getClassic ()
-					? this.server_state.scheduler.classicQuorum (ballot)
-					: this.server_state.scheduler.fastQuorum (ballot);
+					? this.server_state.getScheduler ().classicQuorum (ballot)
+					: this.server_state.getScheduler ().fastQuorum (ballot);
 			boolean became_decided = entry.recordLearn (
 					ballot, value, server_id, decision_quorum);
 			System.out.println ("Paxos learner for instance " + instance + " : number of distinct accepts " + entry.getAcceptCount (ballot));
 			if (became_decided) {
 				System.out.println ("Paxos learner: waking up the main loop");
 				this.server_state.updateCompletedBallot (ballot);
-				this.server_state.main_loop.wakeup ();
+				this.server_state.getMainLoop ().wakeup ();
 			} else if (!request.getClassic ()
 					&& entry.fastRoundCollided (ballot, decision_quorum,
-							this.server_state.scheduler.acceptors (ballot).size ())
+							this.server_state.getScheduler ().acceptors (ballot).size ())
 					&& this.server_state.advanceFromCollidedFastBallot (ballot)) {
 				// Learners may disagree, e.g. on a 4-1 split another learner may see the
 				// four matching votes first and decide. Advancing stays safe either way.
 				System.out.println ("Paxos learner: instance " + instance + " collided in Fast ballot "
 						+ ballot + ", no value reached the Fast quorum; advancing to ballot " + (ballot + 1));
-				this.server_state.main_loop.wakeup ();
+				this.server_state.getMainLoop ().wakeup ();
 			}
 		}
 

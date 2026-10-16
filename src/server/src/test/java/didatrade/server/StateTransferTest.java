@@ -7,6 +7,11 @@ import didatrade.DidaTradeMaster;
 import io.grpc.stub.StreamObserver;
 import didatrade.configs.ConfigurationScheduler;
 import didatrade.core.TradeManager;
+import didatrade.server.request.DidaTradeAction;
+import didatrade.server.request.DidaTradeCommand;
+import didatrade.server.request.RequestHistory;
+import didatrade.server.request.RequestRecord;
+import didatrade.server.service.DidaTradeMasterServiceImpl;
 
 class StateTransferTest {
 	@Test

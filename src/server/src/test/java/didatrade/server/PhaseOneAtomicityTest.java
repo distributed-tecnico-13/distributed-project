@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import didatrade.DidaTradePaxos;
 import didatrade.configs.ConfigurationScheduler;
 import io.grpc.stub.StreamObserver;
+import didatrade.server.service.DidaTradePaxosServiceImpl;
 
 // Reproduces the review finding: the Phase 1 handler snapshots accepted entries and then
 // promises the new ballot. Those two steps must be atomic with respect to a concurrent

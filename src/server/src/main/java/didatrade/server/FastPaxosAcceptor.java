@@ -1,10 +1,10 @@
 package didatrade.server;
 
-final class FastPaxosAcceptor {
+public final class FastPaxosAcceptor {
 	private FastPaxosAcceptor() {
 	}
 
-	static boolean tryAcceptRequest (DidaTradeServerState state, int request_id) {
+	public static boolean tryAcceptRequest (DidaTradeServerState state, int request_id) {
 		DidaTradeServerState.FastVoteState vote = state.processFastVote (request_id);
 		if (!vote.accepted)
 			return false;
@@ -15,7 +15,7 @@ final class FastPaxosAcceptor {
 		return true;
 	}
 
-	static int acceptPendingRequests (DidaTradeServerState state) {
+	public static int acceptPendingRequests (DidaTradeServerState state) {
 		int accepted = 0;
 		for (int request_id : state.req_history.getPendingRequestIds ()) {
 			if (tryAcceptRequest (state, request_id))

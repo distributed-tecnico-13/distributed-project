@@ -6,16 +6,16 @@ import java.util.concurrent.TimeUnit;
 import didatrade.DidaTradePaxos;
 import io.grpc.Context;
 
-final class PaxosLearnerNotifier {
+public final class PaxosLearnerNotifier {
 	private PaxosLearnerNotifier() {
 	}
 
-	static void notifyAccepted (
+	public static void notifyAccepted (
 			DidaTradeServerState state, int instance, int ballot, int value) {
 		notifyAccepted (state, instance, ballot, value, false);
 	}
 
-	static void notifyAccepted (
+	public static void notifyAccepted (
 			DidaTradeServerState state, int instance, int ballot, int value, boolean classic) {
 		Context context = Context.current ().fork ();
 		context.run ( () -> {

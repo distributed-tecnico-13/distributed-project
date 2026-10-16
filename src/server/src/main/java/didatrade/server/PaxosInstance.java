@@ -4,6 +4,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
+import didatrade.server.request.CommandIdHelper;
 
 public class PaxosInstance {
 	private int instance_nb;
@@ -334,8 +335,8 @@ public class PaxosInstance {
 	}
 
 	public static final class AcceptedSnapshot {
-		final int value;
-		final int valballot;
+		public final int value;
+		public final int valballot;
 
 		AcceptedSnapshot(int value, int valballot) {
 			this.value = value;

@@ -1,5 +1,5 @@
 
-package didatrade.server;
+package didatrade.server.request;
 
 import java.util.Enumeration;
 import java.util.HashSet;

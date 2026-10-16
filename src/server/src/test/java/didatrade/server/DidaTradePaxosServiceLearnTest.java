@@ -9,6 +9,7 @@ import org.junit.jupiter.api.Test;
 import didatrade.DidaTradePaxos;
 import didatrade.configs.ConfigurationScheduler;
 import io.grpc.stub.StreamObserver;
+import didatrade.server.service.DidaTradePaxosServiceImpl;
 
 class DidaTradePaxosServiceLearnTest {
 
