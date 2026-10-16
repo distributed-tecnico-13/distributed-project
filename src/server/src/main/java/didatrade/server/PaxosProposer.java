@@ -190,7 +190,6 @@ final class PaxosProposer {
 				return;
 			int instance = entry.getInstanceNb ();
 			int phase_two_value = entry.pinPhaseTwoValue (ballot, entry.getValueToPropose ());
-			this.server_state.paxos_log.replaceProposedRequestId (instance, phase_two_value);
 			List<Integer> acceptors = this.server_state.scheduler.acceptors (ballot);
 			if (this.runPhaseTwo (instance, ballot, phase_two_value, acceptors,
 					acceptors.size (), this.server_state.scheduler.classicQuorum (ballot)))

@@ -119,12 +119,6 @@ public class PaxosLog {
 		return this.adopt (instance, CommandIdKind.NOOP_ID);
 	}
 
-	public synchronized void replaceProposedRequestId (int position, int request_id) {
-		PaxosInstance entry = this.log.get (position);
-		if (entry != null)
-			entry.setProposedRequestId (request_id);
-	}
-
 	// Slots this acceptor accepted a value in; the content of a Phase 1 reply.
 	public synchronized PaxosInstance[] getAcceptedEntries () {
 		return this.log.entrySet ().stream ()

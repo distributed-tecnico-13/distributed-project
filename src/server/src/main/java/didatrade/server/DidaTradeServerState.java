@@ -40,7 +40,7 @@ public final class DidaTradeServerState {
 	private DebugState debug_state;
 	private boolean fastpaxos_on;
 	// First slot Fast proposals may use; lower slots belong to classic recovery.
-	private int fast_first_instance;
+	private int first_fast_instance;
 	private int last_phase_one_completed_ballot = -1;
 	private int last_executed_instance = -1;
 	private boolean membership_transferred;
@@ -249,7 +249,7 @@ public final class DidaTradeServerState {
 			return false;
 		this.setCurrentBallot (ballot);
 		// Never allow Fast proposals to reuse slots reserved for classic recovery.
-		this.fast_first_instance = Math.max (this.fast_first_instance, first_fast_instance);
+		this.first_fast_instance = Math.max (this.first_fast_instance, first_fast_instance);
 		this.setFastPaxosMode (true);
 		return true;
 	}
@@ -263,7 +263,7 @@ public final class DidaTradeServerState {
 				|| !this.scheduler.isacceptor (this.my_id, ballot))
 			return new FastVoteState (false, ballot, -1);
 
-		PaxosInstance entry = this.paxos_log.assignFastRequest (request_id, this.fast_first_instance);
+		PaxosInstance entry = this.paxos_log.assignFastRequest (request_id, this.first_fast_instance);
 		boolean accepted = entry.accept (ballot, request_id);
 		return new FastVoteState (accepted, ballot, entry.getInstanceNb ());
 	}
