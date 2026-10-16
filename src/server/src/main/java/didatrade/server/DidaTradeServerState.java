@@ -228,6 +228,15 @@ public final class DidaTradeServerState {
 		return new FastVoteState (accepted, ballot, entry.getInstanceNb ());
 	}
 
+	// If the next ballot's leader has crashed, the system stays blocked until the console
+	// issues a newer ballot.
+	public synchronized boolean advanceFromCollidedFastBallot (int ballot) {
+		if (ballot != this.current_ballot)
+			return false;
+		this.setCurrentBallot (ballot + 1);
+		return true;
+	}
+
 	public synchronized int getCompletedBallot () {
 		return this.completed_ballot;
 	}

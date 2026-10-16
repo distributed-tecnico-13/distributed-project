@@ -5,7 +5,6 @@ import java.util.Enumeration;
 import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 
 public class RequestHistory {
@@ -60,31 +59,6 @@ public class RequestHistory {
 		if (!CommandIdHelper.isClientRequest (requestid))
 			return false;
 		this.pending.put (requestid, record);
-		return true;
-	}
-
-	public synchronized RequestRecord installIfAbsent (int id, DidaTradeCommand command) {
-		if (!CommandIdHelper.isClientRequest (id))
-			throw new IllegalArgumentException ("Invalid request id");
-		RequestRecord existing = this.getIfExists (id);
-		if (existing != null) {
-			if (!CommandTransfer.same (existing.getRequest (), command))
-				throw new IllegalArgumentException ("Conflicting command for request " + id);
-			return existing;
-		}
-		RequestRecord record = new RequestRecord (id, command);
-		this.pending.put (id, record);
-		return record;
-	}
-
-	// Validate the decoded batch before inserting anything; never acquire a log lock here.
-	synchronized boolean installAllIfAbsent (Map<Integer, DidaTradeCommand> commands) {
-		for (Map.Entry<Integer, DidaTradeCommand> entry : commands.entrySet ()) {
-			RequestRecord existing = this.getIfExists (entry.getKey ());
-			if (existing != null && !CommandTransfer.same (existing.getRequest (), entry.getValue ()))
-				return false;
-		}
-		commands.forEach (this::installIfAbsent);
 		return true;
 	}
 

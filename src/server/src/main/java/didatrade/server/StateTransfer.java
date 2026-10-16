@@ -2,8 +2,6 @@ package didatrade.server;
 
 import static didatrade.configs.ScheduleC.MEMBERSHIP_CHANGE_BALLOT;
 
-import java.util.HashMap;
-import java.util.Map;
 import didatrade.DidaTradePaxos;
 
 /** Installs a prefix already confirmed by the non-Byzantine ballot leader. */
@@ -16,20 +14,8 @@ final class StateTransfer {
 		synchronized (state) {
 			if (ballot < state.getCurrentBallot ())
 				return false;
-			Map<Integer, DidaTradeCommand> commands = new HashMap<> ();
-			try {
-				for (DidaTradePaxos.CommandPayload payload : request.getCommandsList ()) {
-					DidaTradeCommand command = CommandTransfer.decode (payload);
-					DidaTradeCommand previous = commands.putIfAbsent (payload.getRequestid (), command);
-					if (previous != null && !CommandTransfer.same (previous, command))
-						return false;
-				}
-			} catch (IllegalArgumentException e) {
-				return false;
-			}
-			if (!state.req_history.installAllIfAbsent (commands))
-				return false;
 			state.setCurrentBallot (ballot);
+			// Installation can finish before execution; the executor waits for delayed client commands.
 			for (DidaTradePaxos.PhaseOneResponseLogObject e : request.getEntriesList ()) {
 				PaxosInstance local = state.paxos_log.testAndSetEntry (e.getInstance ());
 				if (state.scheduler.isacceptor (state.my_id, ballot)) {

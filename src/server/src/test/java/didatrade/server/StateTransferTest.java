@@ -1,12 +1,7 @@
 package didatrade.server;
 
 import static org.junit.jupiter.api.Assertions.*;
-import java.util.Set;
-import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.FutureTask;
-import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
-import org.junit.jupiter.api.Timeout;
 import didatrade.DidaTradePaxos;
 import didatrade.DidaTradeMaster;
 import io.grpc.stub.StreamObserver;
@@ -15,113 +10,11 @@ import didatrade.core.TradeManager;
 
 class StateTransferTest {
 	@Test
-	@Timeout(8)
-	void delayedInstallationCanOverlapFreshCommandAssignment () throws Exception {
-		DidaTradeServerState s = state (4);
-		CountDownLatch assigning = new CountDownLatch (1);
-		CountDownLatch installing = new CountDownLatch (1);
-		s.req_history = new RequestHistory () {
-			@Override
-			public RequestRecord getFirstPendingExcluding (Set<Integer> ids) {
-				assigning.countDown ();
-				try {
-					assertTrue (installing.await (2, TimeUnit.SECONDS));
-				} catch (InterruptedException e) {
-					throw new AssertionError (e);
-				}
-				return super.getFirstPendingExcluding (ids);
-			}
-		};
-		s.paxos_log = new PaxosLog () {
-			@Override
-			public PaxosInstance testAndSetEntry (int slot) {
-				if (Thread.currentThread ().getName ().equals ("delayed-installation")) {
-					// Fail before acquiring the log lock, so the old bug cannot leak
-					// deadlocked threads when this regression fails.
-					try {
-						assertFalse (Thread.holdsLock (s.req_history), "assignment already holds the log and needs history");
-					} finally {
-						installing.countDown ();
-					}
-				}
-				return super.testAndSetEntry (slot);
-			}
-		};
-		s.setCurrentBallot (3);
-		s.req_history.installIfAbsent (101, new DidaTradeCommand (DidaTradeAction.ADDUSER, 77, 100, 10));
-		s.req_history.moveToProcessed (101);
-		PaxosInstance recovered = s.paxos_log.testAndSetEntry (0);
-		recovered.decide (3, 101);
-		recovered.markExecuted ();
-		s.req_history.installIfAbsent (301, new DidaTradeCommand (DidaTradeAction.ADDUSER, 88, 200, 10));
-		DidaTradePaxos.InstallStateRequest request = DidaTradePaxos.InstallStateRequest.newBuilder ().setBallot (3)
-				.addEntries (DidaTradePaxos.PhaseOneResponseLogObject.newBuilder ().setInstance (0).setValue (101).setValballot (3))
-				.addCommands (CommandTransfer.encode (s.req_history.getIfExists (101))).build ();
-		FutureTask<PaxosInstance> assignment = new FutureTask<> ( () -> s.paxos_log.assignPendingRequest (1, s.req_history));
-		FutureTask<Boolean> installation = new FutureTask<> ( () -> StateTransfer.install (s, request));
-		Thread a = new Thread (assignment, "fresh-assignment");
-		Thread b = new Thread (installation, "delayed-installation");
-		try {
-			a.start ();
-			assertTrue (assigning.await (2, TimeUnit.SECONDS));
-			b.start ();
-			assertTrue (installation.get (2, TimeUnit.SECONDS));
-			assertEquals (301, assignment.get (2, TimeUnit.SECONDS).getProposedRequestId ());
-		} finally {
-			installing.countDown ();
-			a.join (2000);
-			b.join (2000);
-		}
-	}
-
-	@Test
-	void transferredCommandsPreserveWaitersAndExecuteExactlyOnce () {
-		DidaTradeServerState s = state (5);
-		RequestRecord waiter = s.req_history.installIfAbsent (201, new DidaTradeCommand (DidaTradeAction.BUY, 77, 50));
-		DidaTradePaxos.InstallStateRequest request = payloadPrefix ();
-		assertTrue (StateTransfer.install (s, request));
-		assertSame (waiter, s.req_history.getIfExists (201));
-		OrderedPaxosExecutor executor = new OrderedPaxosExecutor (s);
-		assertEquals (2, executor.drain ());
-		assertEquals (50, s.trade_manager.balance (77));
-		assertTrue (StateTransfer.install (s, request));
-		assertEquals (0, executor.drain ());
-		assertSame (waiter, s.req_history.getIfProcessed (201));
-		assertEquals (50, s.trade_manager.balance (77));
-	}
-
-	@Test
-	void malformedOrConflictingCommandsCannotPartiallyInstall () {
-		for (DidaTradePaxos.InstallStateRequest request : new DidaTradePaxos.InstallStateRequest[]{
-				payloadPrefix ().toBuilder ().setCommands (1, payloadPrefix ().getCommands (1).toBuilder ().setAction ("INVALID")).build (),
-				payloadPrefix ().toBuilder ().addCommands (payloadPrefix ().getCommands (0).toBuilder ().setQuantity (999)).build (),
-				payloadPrefix ().toBuilder ().setCommands (1, payloadPrefix ().getCommands (1).toBuilder ().setRequestid (-1)).build ()}) {
-			DidaTradeServerState s = state (5);
-			assertFalse (StateTransfer.install (s, request));
-			assertNull (s.req_history.getIfExists (101));
-			assertEquals (0, s.paxos_log.length ());
-			assertFalse (s.membershipTransferred ());
-		}
-		DidaTradeServerState s = state (5);
-		RequestRecord existing = s.req_history.installIfAbsent (201, new DidaTradeCommand (DidaTradeAction.BUY, 77, 25));
-		assertFalse (StateTransfer.install (s, payloadPrefix ()));
-		assertSame (existing, s.req_history.getIfExists (201));
-		assertNull (s.req_history.getIfExists (101));
-		assertEquals (0, s.paxos_log.length ());
-		assertFalse (s.membershipTransferred ());
-	}
-
-	private static DidaTradePaxos.InstallStateRequest payloadPrefix () {
-		return prefix ().toBuilder ()
-				.addCommands (CommandTransfer.encode (new RequestRecord (101, new DidaTradeCommand (DidaTradeAction.ADDUSER, 77, 100, 10))))
-				.addCommands (CommandTransfer.encode (new RequestRecord (201, new DidaTradeCommand (DidaTradeAction.BUY, 77, 50))))
-				.build ();
-	}
-	@Test
 	void repeatedInstallationPreservesWaitersAndDoesNotRepeatTrade () {
 		DidaTradeServerState s = state (5);
-		RequestRecord waiter = s.req_history.installIfAbsent (101, new DidaTradeCommand (DidaTradeAction.ADDUSER, 77, 100, 10));
-		s.req_history.installIfAbsent (201, new DidaTradeCommand (DidaTradeAction.BUY, 77, 50));
+		RequestRecord waiter = new RequestRecord (101, new DidaTradeCommand (DidaTradeAction.ADDUSER, 77, 100, 10));
+		s.req_history.addToPending (101, waiter);
+		s.req_history.addToPending (201, new RequestRecord (201, new DidaTradeCommand (DidaTradeAction.BUY, 77, 50)));
 		assertTrue (StateTransfer.install (s, prefix ()));
 		assertSame (waiter, s.req_history.getIfExists (101));
 		assertTrue (s.membershipTransferred ());
@@ -136,7 +29,7 @@ class StateTransferTest {
 	void staleInstallationCannotPublishTheMarker () {
 		DidaTradeServerState s = state (5);
 		s.setCurrentBallot (3);
-		assertFalse (StateTransfer.install (s, payloadPrefix ()));
+		assertFalse (StateTransfer.install (s, prefix ()));
 		assertEquals (3, s.getCurrentBallot ());
 		assertEquals (0, s.paxos_log.length ());
 		assertNull (s.req_history.getIfExists (101));
@@ -145,8 +38,8 @@ class StateTransferTest {
 	@Test
 	void retiredAcceptorCanPromiseAndLearnButCannotVote () {
 		DidaTradeServerState s = state (0);
-		s.req_history.installIfAbsent (101, new DidaTradeCommand (DidaTradeAction.ADDUSER, 77, 100, 10));
-		s.req_history.installIfAbsent (201, new DidaTradeCommand (DidaTradeAction.BUY, 77, 50));
+		s.req_history.addToPending (101, new RequestRecord (101, new DidaTradeCommand (DidaTradeAction.ADDUSER, 77, 100, 10)));
+		s.req_history.addToPending (201, new RequestRecord (201, new DidaTradeCommand (DidaTradeAction.BUY, 77, 50)));
 		assertTrue (s.processPhaseOne (2).accepted);
 		assertFalse (s.processPhaseTwo (s.paxos_log.testAndSetEntry (0), 2, 101).accepted);
 		assertTrue (StateTransfer.install (s, prefix ()));
@@ -158,16 +51,16 @@ class StateTransferTest {
 	@Test
 	void executionWaitsForClientCommandsWithoutSkippingTheMissingSlot () {
 		DidaTradeServerState s = state (5);
-		// Normal learning may still precede client delivery; it must not skip slots.
-		s.paxos_log.testAndSetEntry (0).decide (2, 101);
-		s.paxos_log.testAndSetEntry (1).decide (2, 201);
+		// Client requests may arrive arbitrarily late, even after a completed transfer.
+		assertTrue (StateTransfer.install (s, prefix ()));
+		assertTrue (s.membershipTransferred ());
 		assertNull (s.req_history.getIfExists (101));
 		OrderedPaxosExecutor executor = new OrderedPaxosExecutor (s);
 		assertEquals (0, executor.drain ());
-		s.req_history.installIfAbsent (201, new DidaTradeCommand (DidaTradeAction.BUY, 77, 50));
+		s.req_history.addToPending (201, new RequestRecord (201, new DidaTradeCommand (DidaTradeAction.BUY, 77, 50)));
 		assertEquals (0, executor.drain ());
 		assertEquals (-1, s.getLastExecutedInstance ());
-		s.req_history.installIfAbsent (101, new DidaTradeCommand (DidaTradeAction.ADDUSER, 77, 100, 10));
+		s.req_history.addToPending (101, new RequestRecord (101, new DidaTradeCommand (DidaTradeAction.ADDUSER, 77, 100, 10)));
 		assertEquals (2, executor.drain ());
 		assertEquals (50, s.trade_manager.balance (77));
 		assertEquals (1, s.getLastExecutedInstance ());
@@ -205,7 +98,7 @@ class StateTransferTest {
 	@Test
 	void delayedTransferPreservesVotesFromItsOwnBallot () {
 		DidaTradeServerState s = state (3);
-		s.req_history.installIfAbsent (301, new DidaTradeCommand (DidaTradeAction.ADDUSER, 88, 100, 10));
+		s.req_history.addToPending (301, new RequestRecord (301, new DidaTradeCommand (DidaTradeAction.ADDUSER, 88, 100, 10)));
 		DidaTradePaxos.InstallStateRequest empty = DidaTradePaxos.InstallStateRequest.newBuilder ()
 				.setBallot (2).build ();
 		assertTrue (StateTransfer.install (s, empty));
@@ -216,6 +109,16 @@ class StateTransferTest {
 		assertTrue (StateTransfer.install (s, empty), "a delayed retry may arrive after Fast opens");
 		assertEquals (2, s.paxos_log.getEntry (0).getWriteBallot ());
 		assertEquals (301, s.paxos_log.getEntry (0).getAcceptedValue ());
+	}
+
+	@Test
+	void staticSchedulesPreserveInitialActivationAcknowledgement () {
+		for (char schedule : new char[]{'A', 'B'}) {
+			DidaTradeServerState s = state (0);
+			s.scheduler = new ConfigurationScheduler (schedule);
+			assertEquals (-1, s.getCompletedBallot ());
+			assertTrue (activate (s, 0));
+		}
 	}
 
 	@Test

@@ -124,8 +124,11 @@ public class PaxosInstance {
 		return this.learn_info.acceptCount (ballot, value);
 	}
 
-	public synchronized boolean cannotReachQuorum (int ballot, int quorum, int n_acceptors) {
-		return this.learn_info.cannotReachQuorum (ballot, quorum, n_acceptors);
+	// Project rule: a Fast quorum has reported, but no value has a matching quorum.
+	// A delayed vote can still decide this ballot; the next ballot must recover safely.
+	public synchronized boolean fastRoundCollided (int ballot, int quorum) {
+		return this.learn_info.responderCount (ballot) >= quorum
+				&& this.learn_info.acceptCount (ballot) < quorum;
 	}
 
 	public synchronized int getProposedRequestId () {
@@ -277,18 +280,15 @@ public class PaxosInstance {
 			return CommandIdHelper.ABSENT_VALUE;
 		}
 
-		boolean cannotReachQuorum (int ballot, int quorum, int n_acceptors) {
+		// recordVote() keeps one vote per acceptor, so the vote sets are disjoint.
+		int responderCount (int ballot) {
 			Map<Integer, LearnVotes> values = this.learn_votes.get (ballot);
-			if (values == null || values.isEmpty ())
-				return false;
-			Set<Integer> responders = new HashSet<> ();
-			int highest_count = 0;
-			for (LearnVotes votes : values.values ()) {
-				responders.addAll (votes.accepted_by);
-				highest_count = Math.max (highest_count, votes.accepted_by.size ());
-			}
-			int remaining = Math.max (0, n_acceptors - responders.size ());
-			return highest_count + remaining < quorum;
+			if (values == null)
+				return 0;
+			int responders = 0;
+			for (LearnVotes votes : values.values ())
+				responders += votes.accepted_by.size ();
+			return responders;
 		}
 
 		private static final class LearnVotes {

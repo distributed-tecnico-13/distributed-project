@@ -4,28 +4,10 @@
 syntax = "proto3";
 package didatrade;
 
-// Immutable request parameters, used only during membership recovery.
-message CommandPayload {
-  int32 requestid = 1;
-  string action = 2;
-  int32 userid = 3;
-  int32 quantity = 4;
-  int32 stock = 5;
-}
-
-message FetchCommandsRequest {
-  repeated int32 requestids = 1;
-}
-
-message FetchCommandsReply {
-  repeated CommandPayload commands = 1;
-}
-
 // Only the configured leader sends this after confirming the prefix by Phase 2.
 message InstallStateRequest {
   int32 ballot = 1;
   repeated PhaseOneResponseLogObject entries = 4;
-  repeated CommandPayload commands = 5;
 }
 
 message InstallStateReply {
@@ -93,7 +75,6 @@ message LearnReply {
 }
 
 service DidaTradePaxosService {
-  rpc fetchcommands (FetchCommandsRequest) returns (FetchCommandsReply);
   rpc installstate (InstallStateRequest) returns (InstallStateReply);
   rpc phaseone (PhaseOneRequest) returns (PhaseOneReply);
   rpc phasetwo (PhaseTwoRequest) returns (PhaseTwoReply);

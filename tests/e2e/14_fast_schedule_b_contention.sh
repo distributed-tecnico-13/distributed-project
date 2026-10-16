@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 export DAD_E2E_SCHEDULE=B
-# Contention can require several operator-triggered ballots; keep clients alive
-# long enough to finish after those manual recovery operations.
+# Keep clients alive through automatic recovery and any manual fallback.
 export DAD_E2E_APP_TIMEOUT_SECONDS=180
 source "$(dirname "$0")/lib.sh"
 activate_env
@@ -24,10 +23,9 @@ for cid in 70 71 72 73 74 75 76 77; do
     PIDS+=("$!")
 done
 
-# A Fast collision need not be resolvable in the current ballot. The project
-# requires ballot changes via the console, not automatic server-side escalation.
-# Give the current Fast round time to finish, then initiate bounded manual
-# recovery only while clients still have outstanding operations.
+# A Fast quorum of Learns without a matching value triggers local advancement.
+# The specified algorithm can still require console intervention if the next
+# leader misses the split, so allow automatic recovery before manual fallback.
 all_contention_clients_finished() {
     local cid
     for cid in 70 71 72 73 74 75 76 77; do
@@ -36,20 +34,27 @@ all_contention_clients_finished() {
     done
 }
 
-for ballot in {2..12}; do
-    # Allow the current round to settle before requesting another ballot.
+for attempt in {1..11}; do
     for ((spin = 0; spin < 20; spin++)); do
         if all_contention_clients_finished; then
             break 2
         fi
         sleep 0.25
     done
-    echo "[e2e] outstanding Fast requests; requesting recovery ballot $ballot via console"
+    # Request a ballot above those observed during automatic recovery.
+    ballot=$(awk '
+        /advancing to ballot/ { if ($NF > highest) highest = $NF }
+        /notify learners for entry/ {
+            for (i = 1; i < NF; i++)
+                if ($i == "timestamp" && $(i + 1) > highest) highest = $(i + 1)
+        }
+        END { print highest + 1 }
+    ' "$E2E_LOG_DIR"/server-*.log)
+    echo "[e2e] outstanding Fast requests; requesting fallback ballot $ballot via console"
     run_ballot_console "$ballot" "$((ballot % 3))" "$E2E_LOG_DIR/console-ballot$ballot.log"
-    assert_ballot_accepted "$E2E_LOG_DIR/console-ballot$ballot.log" "$ballot"
+    # An automatic advance may supersede the console request while it is in flight.
 done
 
-# The last recovery may have unblocked clients still completing their last RPC.
 for ((spin = 0; spin < 40; spin++)); do
     if all_contention_clients_finished; then
         break
@@ -61,7 +66,7 @@ if ! all_contention_clients_finished; then
         echo "--- client $cid ---" >&2
         tail -12 "$E2E_LOG_DIR/client-$cid.log" >&2 || true
     done
-    fail "clients remained blocked after bounded manual Fast recovery"
+    fail "clients remained blocked after automatic recovery and bounded console fallback"
 fi
 
 for pid in "${PIDS[@]}"; do
@@ -78,4 +83,4 @@ assert_same_observable_state 0 2
 assert_same_observable_state 0 3
 assert_same_observable_state 0 4
 
-echo "PASS: concurrent Schedule B clients completed with explicit Fast recovery and all five replicas converged"
+echo "PASS: concurrent Schedule B clients completed with Fast recovery and all five replicas converged"

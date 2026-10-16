@@ -67,13 +67,14 @@ public class DidaTradeMasterServiceImpl extends DidaTradeMasterServiceGrpc.DidaT
 		// for debug purposes
 		System.out.println ("Current ballot = " + this.server_state.getCurrentBallot () + " activated ballot = " + completed_ballot);
 
-		// Ballot initiation performs the safe handoff automatically. Activation
-		// acknowledges readiness only for this replica's current leader ballot.
+		// Schedule C performs the handoff during ballot initiation; activation checks
+		// readiness. Static schedules retain their original acknowledgement.
 
 		DidaTradeMaster.ActivateReply.Builder response_builder = DidaTradeMaster.ActivateReply.newBuilder ();
 		response_builder.setReqid (request_id);
-		response_builder.setAck (this.server_state.canProposeFor (completed_ballot)
-				&& completed_ballot <= this.server_state.getCompletedBallot ());
+		response_builder.setAck (!this.server_state.scheduler.dynamicMembership ()
+				|| (this.server_state.canProposeFor (completed_ballot)
+						&& completed_ballot <= this.server_state.getCompletedBallot ()));
 
 		DidaTradeMaster.ActivateReply response = response_builder.build ();
 		responseObserver.onNext (response);

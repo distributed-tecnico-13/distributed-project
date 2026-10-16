@@ -13,7 +13,6 @@ import java.util.stream.Collectors;
 
 import didatrade.DidaTradePaxos;
 import didatrade.util.CollectorStreamObserver;
-import didatrade.util.CommandRecoveryResponseProcessor;
 import didatrade.util.FastRoundResponseProcessor;
 import didatrade.util.GenericResponseCollector;
 import didatrade.util.PhaseOneResponseProcessor;
@@ -143,48 +142,19 @@ final class PaxosProposer {
 		return this.server_state.getCompletedBallot () == ballot;
 	}
 
-	private boolean recoverCommands (int ballot) {
-		Set<Integer> missing = new java.util.HashSet<> ();
-		for (int slot = 0; slot < this.recoveryLimit (ballot); slot++) {
-			int id = this.server_state.paxos_log.getEntry (slot).getCommandId ();
-			if (id >= 0 && this.server_state.req_history.getIfExists (id) == null)
-				missing.add (id);
-		}
-		if (missing.isEmpty ())
-			return true;
-		DidaTradePaxos.FetchCommandsRequest request = DidaTradePaxos.FetchCommandsRequest.newBuilder ()
-				.addAllRequestids (missing).build ();
-		CommandRecoveryResponseProcessor processor = new CommandRecoveryResponseProcessor (missing);
-		List<Integer> participants = this.server_state.scheduler.allparticipants ();
-		GenericResponseCollector<DidaTradePaxos.FetchCommandsReply> collector = new GenericResponseCollector<> (
-				new ArrayList<> (), participants.size (), processor);
-		for (int participant : participants)
-			this.server_state.async_stubs[participant].withDeadlineAfter (RPC_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-					.fetchcommands (request, new CollectorStreamObserver<> (collector));
-		collector.waitUntilDone ();
-		if (!processor.getAccepted () || !this.server_state.canProposeFor (ballot))
-			return false;
-		for (DidaTradePaxos.CommandPayload command : processor.getCommands ())
-			this.server_state.req_history.installIfAbsent (command.getRequestid (), CommandTransfer.decode (command));
-		return true;
-	}
-
 	boolean finishTransfer (int ballot) {
 		if (!this.server_state.canProposeFor (ballot) || !this.fastRecoveryComplete (ballot))
 			return false;
 		if (this.transferComplete (ballot))
 			return true;
-		if (!this.recoverCommands (ballot) || !this.server_state.canProposeFor (ballot))
-			return false;
+		// Transfer only IDs: the project guarantees eventual delivery of command
+		// parameters from clients to every replica, even if debug modes delay them.
 		DidaTradePaxos.InstallStateRequest.Builder builder = DidaTradePaxos.InstallStateRequest.newBuilder ()
 				.setBallot (ballot);
-		Set<Integer> commands = new java.util.HashSet<> ();
 		for (int slot = 0; slot < this.recoveryLimit (ballot); slot++) {
 			int value = this.server_state.paxos_log.getEntry (slot).getCommandId ();
 			builder.addEntries (DidaTradePaxos.PhaseOneResponseLogObject.newBuilder ()
 					.setInstance (slot).setValue (value).setValballot (ballot));
-			if (value >= 0 && commands.add (value))
-				builder.addCommands (CommandTransfer.encode (this.server_state.req_history.getIfExists (value)));
 		}
 		DidaTradePaxos.InstallStateRequest request = builder.build ();
 		List<Integer> learners = this.server_state.scheduler.learners (ballot);
