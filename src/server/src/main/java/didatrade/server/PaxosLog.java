@@ -36,16 +36,6 @@ public class PaxosLog {
 		return entry;
 	}
 
-	public synchronized PaxosInstance testAndSetEntry (int position, int ballot) {
-		PaxosInstance entry = this.log.get (position);
-
-		if (entry == null) {
-			entry = new PaxosInstance (position, ballot);
-			this.log.put (position, entry);
-		}
-		return entry;
-	}
-
 	// Classic/Multi-Paxos allocation remains centralized in MainLoop.
 	public synchronized PaxosInstance assignPendingRequest (int position, RequestHistory history) {
 		PaxosInstance entry = this.log.get (position);

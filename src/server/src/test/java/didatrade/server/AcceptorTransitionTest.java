@@ -22,12 +22,12 @@ class AcceptorTransitionTest {
 		state.scheduler = new ConfigurationScheduler ('A');
 		PaxosInstance entry = new PaxosInstance (0);
 
-		assertTrue (state.processPhaseOne (entry, 5).accepted);
+		assertTrue (state.processPhaseOne (5).accepted);
 		DidaTradeServerState.PhaseTwoState result = state.processPhaseTwo (entry, 4, 100);
 
 		assertFalse (result.accepted);
 		assertEquals (5, result.maxballot);
-		assertEquals (-1, state.processPhaseOne (entry, 5).valballot);
+		assertEquals (-1, entry.getAcceptedSnapshot ().valballot);
 	}
 
 	@Test
@@ -42,7 +42,7 @@ class AcceptorTransitionTest {
 
 		assertFalse (conflicting.accepted);
 		assertEquals (5, conflicting.maxballot);
-		PaxosInstance.PhaseOneState snapshot = state.processPhaseOne (entry, 5);
+		PaxosInstance.AcceptedSnapshot snapshot = entry.getAcceptedSnapshot ();
 		assertEquals (100, snapshot.value);
 		assertEquals (5, snapshot.valballot);
 		assertFalse (entry.isDecided ());
@@ -61,7 +61,7 @@ class AcceptorTransitionTest {
 		assertEquals (5, result.maxballot);
 		assertEquals (100, entry.getCommandId ());
 		assertEquals (4, entry.getAcceptBallot ());
-		PaxosInstance.PhaseOneState snapshot = state.processPhaseOne (entry, 5);
+		PaxosInstance.AcceptedSnapshot snapshot = entry.getAcceptedSnapshot ();
 		assertEquals (100, snapshot.value);
 		assertEquals (5, snapshot.valballot);
 	}
@@ -73,7 +73,7 @@ class AcceptorTransitionTest {
 		PaxosInstance entry = new PaxosInstance (0);
 		assertTrue (state.processPhaseTwo (entry, 4, 100).accepted);
 		assertTrue (entry.decide (4, 100));
-		assertTrue (state.processPhaseOne (entry, 5).accepted);
+		assertTrue (state.processPhaseOne (5).accepted);
 
 		DidaTradeServerState.PhaseTwoState result = state.processPhaseTwo (entry, 8, 200);
 
@@ -82,7 +82,7 @@ class AcceptorTransitionTest {
 		assertEquals (8, state.getCurrentBallot ());
 		assertEquals (100, entry.getCommandId ());
 		assertEquals (4, entry.getAcceptBallot ());
-		PaxosInstance.PhaseOneState snapshot = state.processPhaseOne (entry, 8);
+		PaxosInstance.AcceptedSnapshot snapshot = entry.getAcceptedSnapshot ();
 		assertEquals (100, snapshot.value);
 		assertEquals (4, snapshot.valballot);
 		assertFalse (state.processPhaseTwo (entry, 6, 100).accepted);
@@ -99,16 +99,16 @@ class AcceptorTransitionTest {
 				state.processPhaseTwo (entry, 4, 100);
 				CountDownLatch start = new CountDownLatch (1);
 
-				Future<PaxosInstance.PhaseOneState> snapshot = workers.submit ( () -> {
+				Future<PaxosInstance.AcceptedSnapshot> snapshot = workers.submit ( () -> {
 					start.await ();
-					return state.processPhaseOne (entry, 5);
+					return entry.getAcceptedSnapshot ();
 				});
 				Future<DidaTradeServerState.PhaseTwoState> acceptance = workers.submit ( () -> {
 					start.await ();
 					return state.processPhaseTwo (entry, 5, 200);
 				});
 				start.countDown ();
-				PaxosInstance.PhaseOneState result = snapshot.get (2, TimeUnit.SECONDS);
+				PaxosInstance.AcceptedSnapshot result = snapshot.get (2, TimeUnit.SECONDS);
 				assertTrue (acceptance.get (2, TimeUnit.SECONDS).accepted);
 				assertTrue ((result.value == 100 && result.valballot == 4)
 						|| (result.value == 200 && result.valballot == 5));

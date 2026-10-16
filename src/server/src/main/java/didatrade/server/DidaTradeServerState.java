@@ -183,15 +183,6 @@ public final class DidaTradeServerState {
 		this.last_executed_instance = -1;
 	}
 
-	// Lock order: server state, then one PaxosInstance. No RPC runs under either lock.
-	public synchronized PaxosInstance.PhaseOneState processPhaseOne (
-			PaxosInstance entry, int ballot) {
-		boolean accepted = ballot >= this.current_ballot;
-		if (accepted)
-			this.setCurrentBallot (ballot);
-		return entry.phaseOneState (accepted, ballot, this.current_ballot);
-	}
-
 	public synchronized PhaseOneState processPhaseOne (int ballot) {
 		boolean accepted = ballot >= this.current_ballot;
 		if (accepted)
@@ -199,6 +190,7 @@ public final class DidaTradeServerState {
 		return new PhaseOneState (accepted, this.current_ballot);
 	}
 
+	// Lock order: server state, then one PaxosInstance. No RPC runs under either lock.
 	public synchronized PhaseTwoState processPhaseTwo (
 			PaxosInstance entry, int ballot, int value) {
 		boolean accepted = false;

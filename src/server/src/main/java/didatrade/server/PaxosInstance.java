@@ -9,7 +9,6 @@ import didatrade.server.request.CommandIdKind;
 public class PaxosInstance {
 	private int instance_nb;
 	private int command_id;
-	private int read_ballot;
 	private int write_ballot;
 	private int accepted_value;
 	private int accept_ballot;
@@ -21,31 +20,18 @@ public class PaxosInstance {
 	private final LocalProposal proposal = new LocalProposal ();
 
 	public PaxosInstance() {
-		this (0, -1);
+		this (0);
 	}
 
 	public PaxosInstance(int id) {
-		this (id, -1);
-	}
-
-	public PaxosInstance(int id, int ballot) {
 		this.instance_nb = id;
 		this.command_id = 0;
-		this.read_ballot = ballot;
 		this.write_ballot = -1;
 		this.accepted_value = 0;
 		this.accept_ballot = -1;
 		this.decided = false;
 		this.value_is_locked = false;
 		this.executed = false;
-	}
-
-	public synchronized PhaseOneState phaseOneState (
-			boolean accepted, int ballot, int maxballot) {
-		if (accepted)
-			this.read_ballot = ballot;
-		return new PhaseOneState (
-				accepted, this.accepted_value, this.write_ballot, maxballot);
 	}
 
 	public synchronized boolean accept (int ballot, int value) {
@@ -341,20 +327,6 @@ public class PaxosInstance {
 		AcceptedSnapshot(int value, int valballot) {
 			this.value = value;
 			this.valballot = valballot;
-		}
-	}
-
-	public static final class PhaseOneState {
-		final boolean accepted;
-		final int value;
-		final int valballot;
-		final int maxballot;
-
-		PhaseOneState(boolean accepted, int value, int valballot, int maxballot) {
-			this.accepted = accepted;
-			this.value = value;
-			this.valballot = valballot;
-			this.maxballot = maxballot;
 		}
 	}
 }
