@@ -54,8 +54,8 @@ class PaxosLogFastAllocationTest {
 
 		assertEquals (0, first.getInstanceNb ());
 		assertEquals (1, second.getInstanceNb ());
-		assertEquals (100, first.getProposedRequestId ());
-		assertEquals (200, second.getProposedRequestId ());
+		assertEquals (100, log.assignedRequest (0));
+		assertEquals (200, log.assignedRequest (1));
 	}
 
 	@Test
@@ -67,6 +67,6 @@ class PaxosLogFastAllocationTest {
 		PaxosInstance allocated = log.assignFastRequest (200);
 
 		assertEquals (1, allocated.getInstanceNb ());
-		assertEquals (200, allocated.getProposedRequestId ());
+		assertEquals (200, log.assignedRequest (1));
 	}
 }

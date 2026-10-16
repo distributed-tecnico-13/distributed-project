@@ -22,10 +22,8 @@ public final class StateTransfer {
 			// Installation can finish before execution; the executor waits for delayed client commands.
 			for (DidaTradePaxos.PhaseOneResponseLogObject e : request.getEntriesList ()) {
 				PaxosInstance local = state.paxos_log.testAndSetEntry (e.getInstance ());
-				if (state.scheduler.isacceptor (state.my_id, ballot)) {
+				if (state.scheduler.isacceptor (state.my_id, ballot))
 					local.accept (ballot, e.getValue ());
-					local.noteClassicAcceptance (e.getValue ());
-				}
 				local.decide (ballot, e.getValue ());
 			}
 			// The leader sends this only after recovery; it waits for a NEW quorum

@@ -14,6 +14,6 @@ class PhaseOneRecoveryCollisionTest {
 
 		// If Phase 1 says slot 5 must carry 301, local allocation policy must not veto Paxos.
 		assertTrue (log.adopt (5, 301));
-		assertEquals (301, log.getEntry (5).getProposedRequestId ());
+		assertEquals (301, log.assignedRequest (5));
 	}
 }

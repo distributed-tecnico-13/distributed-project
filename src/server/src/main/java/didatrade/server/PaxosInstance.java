@@ -11,9 +11,10 @@ import didatrade.server.request.CommandIdKind;
  * <ul>
  * <li>the decision (top level): the value chosen for the slot and the ballot it was confirmed in,
  * <li>{@code accepted}: what this server accepted as an acceptor; answers Phase 1,
- * <li>{@code votes}: what the acceptors reported to this server as a learner, until a quorum agrees,
- * <li>{@code proposal}: this server's own attempt to propose the slot as a leader.
+ * <li>{@code votes}: what the acceptors reported to this server as a learner, until a quorum agrees.
  * </ul>
+ * What this server does as a leader (the request it assigned to the slot, claims, retries) is
+ * not part of the slot: see PaxosLog and SlotAttempts.
  */
 public class PaxosInstance {
 	private final int instance_nb;
@@ -26,8 +27,6 @@ public class PaxosInstance {
 
 	private final Accepted accepted = new Accepted ();
 	private final LearnInfo votes = new LearnInfo ();
-	// This server's attempt to propose the slot.
-	private final LocalProposal proposal = new LocalProposal ();
 
 	public PaxosInstance() {
 		this (0);
@@ -130,74 +129,17 @@ public class PaxosInstance {
 		return CommandIdKind.isNoop (this.decided_value);
 	}
 
-	// ---- Proposer: assigned request, claim and retry backoff ----
+	// ---- Ownership ----
 
-	public synchronized int getProposedRequestId () {
-		return this.proposal.proposed_request_id;
-	}
-
-	// A decided value always wins. Otherwise the request assigned to this slot: by the leader
-	// (from a client, or a value recovered in Phase 1), by a Fast vote,
-	// or the value of an accepted Phase 2.
-	public synchronized int getValueToPropose () {
-		return this.decided ? this.decided_value : this.proposal.proposed_request_id;
-	}
-
-	// The request this slot currently owns (decided, else accepted, else proposed), or ABSENT once
-	// executed. Prevents one request from being assigned to two slots.
-	public synchronized int getUnexecutedRequestId () {
+	// The request this slot currently owns: decided, else accepted, else the request this server
+	// assigned to it (kept by PaxosLog), or ABSENT once executed. Prevents one request from being
+	// assigned to two slots.
+	public synchronized int getUnexecutedRequestId (int assigned_request) {
 		if (this.executed)
 			return CommandIdKind.ABSENT_ID;
 		if (this.decided)
 			return this.decided_value;
-		return this.accepted.exists () ? this.accepted.value : this.proposal.proposed_request_id;
-	}
-
-	public synchronized void setProposedRequestId (int request_id) {
-		if (!this.decided)
-			this.proposal.proposed_request_id = request_id;
-	}
-
-	// Only an actual successful Phase 2 changes acceptor-owned proposal bookkeeping.
-	public synchronized void noteClassicAcceptance (int value) {
-		if (!this.decided)
-			this.proposal.proposed_request_id = value;
-	}
-
-	// Pins the value Phase 2 sends for this slot in this ballot
-	public synchronized int pinPhaseTwoValue (int ballot, int selected_value) {
-		return this.proposal.pinPhaseTwoValue (ballot, selected_value);
-	}
-
-	// A claim belongs to one local worker; it is unrelated to Paxos acceptance.
-	public synchronized boolean tryClaim (int ballot, long now_nanos) {
-		// Claimable exactly when there is nothing left to wait for (see retryDelayMillis).
-		if (this.retryDelayMillis (ballot, now_nanos) != 0)
-			return false;
-		this.proposal.claimed = true;
-		return true;
-	}
-
-	// Ends the claim and delays the next attempt in this ballot by the backoff. E.g. after a
-	// Phase 2 that found no quorum
-	public synchronized long releaseClaim (int ballot, long retry_delay_nanos) {
-		this.proposal.claimed = false;
-		this.proposal.retry_ballot = ballot;
-		this.proposal.retry_after_nanos = System.nanoTime () + retry_delay_nanos;
-		return this.proposal.retry_after_nanos;
-	}
-
-	// Milliseconds until this slot may be claimed in this ballot: 0 means now, a positive result is a
-	// bounded wait, -1 means never (held by a worker, already decided at this ballot, or no value).
-	public synchronized long retryDelayMillis (int ballot, long now_nanos) {
-		if (this.proposal.claimed || (this.decided && this.decision_ballot >= ballot)
-				|| CommandIdKind.isAbsent (this.getValueToPropose ()))
-			return -1;
-		if (this.proposal.retry_ballot != ballot
-				|| now_nanos >= this.proposal.retry_after_nanos)
-			return 0;
-		long remaining = this.proposal.retry_after_nanos - now_nanos;
-		return Math.max (1, (remaining + 999_999) / 1_000_000);
+		return this.accepted.exists () ? this.accepted.value : assigned_request;
 	}
 
 	// ---- Execution ----
@@ -286,26 +228,6 @@ public class PaxosInstance {
 
 		private static final class LearnVotes {
 			private final Set<Integer> accepted_by = new HashSet<> ();
-		}
-	}
-
-	private static final class LocalProposal {
-		private int proposed_request_id = CommandIdKind.ABSENT_ID;
-		private boolean claimed;
-		private int retry_ballot = -1;
-		private long retry_after_nanos;
-		private int phase_two_ballot = -1;
-		private int phase_two_value;
-
-		// A ballot must never send two different values, including across retries.
-		private int pinPhaseTwoValue (int ballot, int selected_value) {
-			if (ballot < this.phase_two_ballot)
-				throw new IllegalStateException ("Cannot restart an older Phase 2 ballot");
-			if (ballot > this.phase_two_ballot) {
-				this.phase_two_ballot = ballot;
-				this.phase_two_value = selected_value;
-			}
-			return this.phase_two_value;
 		}
 	}
 

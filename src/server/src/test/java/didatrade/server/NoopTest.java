@@ -29,10 +29,10 @@ class NoopTest {
 		assertTrue (log.fillNoop (3));
 		assertTrue (log.fillNoop (1));
 
-		assertEquals (CommandIdKind.NOOP_ID, log.getEntry (0).getProposedRequestId ());
-		assertEquals (CommandIdKind.NOOP_ID, log.getEntry (1).getProposedRequestId ());
+		assertEquals (CommandIdKind.NOOP_ID, log.assignedRequest (0));
+		assertEquals (CommandIdKind.NOOP_ID, log.assignedRequest (1));
 		assertNull (log.getEntry (2));
-		assertEquals (CommandIdKind.NOOP_ID, log.getEntry (3).getProposedRequestId ());
+		assertEquals (CommandIdKind.NOOP_ID, log.assignedRequest (3));
 	}
 
 	@Test
@@ -41,12 +41,12 @@ class NoopTest {
 		assertTrue (log.adopt (2, 301));
 
 		assertFalse (log.fillNoop (2));
-		assertEquals (301, log.getEntry (2).getProposedRequestId ());
+		assertEquals (301, log.assignedRequest (2));
 		assertTrue (log.fillNoop (0));
 		assertTrue (log.fillNoop (1));
 		assertTrue (log.adopt (4, 301));
-		assertEquals (301, log.getEntry (4).getProposedRequestId ());
-		assertEquals (301, log.getEntry (2).getProposedRequestId ());
+		assertEquals (301, log.assignedRequest (4));
+		assertEquals (301, log.assignedRequest (2));
 	}
 
 	@Test
@@ -55,7 +55,7 @@ class NoopTest {
 		assertTrue (log.fillNoop (2));
 
 		assertTrue (log.adopt (2, 301));
-		assertEquals (301, log.getEntry (2).getProposedRequestId ());
+		assertEquals (301, log.assignedRequest (2));
 	}
 
 	@Test
@@ -67,7 +67,7 @@ class NoopTest {
 		// that is a Paxos-mandated recovery, unlike fillNoop's speculative fill, so it must
 		// override the local candidate.
 		assertTrue (log.adopt (2, CommandIdKind.NOOP_ID));
-		assertEquals (CommandIdKind.NOOP_ID, log.getEntry (2).getProposedRequestId ());
+		assertEquals (CommandIdKind.NOOP_ID, log.assignedRequest (2));
 	}
 
 	@Test
@@ -79,27 +79,28 @@ class NoopTest {
 		history.addToPending (100, new RequestRecord (100));
 
 		log.assignPendingRequests (history, 0, 4);
-		assertEquals (CommandIdKind.NOOP_ID, log.getEntry (0).getProposedRequestId ());
-		assertEquals (CommandIdKind.NOOP_ID, log.getEntry (1).getProposedRequestId ());
-		assertEquals (100, log.getEntry (2).getProposedRequestId ());
+		assertEquals (CommandIdKind.NOOP_ID, log.assignedRequest (0));
+		assertEquals (CommandIdKind.NOOP_ID, log.assignedRequest (1));
+		assertEquals (100, log.assignedRequest (2));
 		history.addToPending (200, new RequestRecord (200));
 		log.assignPendingRequests (history, 0, 4);
-		assertEquals (200, log.getEntry (3).getProposedRequestId ());
+		assertEquals (200, log.assignedRequest (3));
 	}
 
 	@Test
 	void noopSlotCanBeClaimedAndRetried () {
-		PaxosInstance empty = new PaxosInstance (0);
-		assertFalse (empty.tryClaim (5, 0));
+		PaxosLog log = new PaxosLog ();
+		PaxosInstance empty = log.testAndSetEntry (0);
+		assertFalse (log.tryClaim (empty, 5, 0));
 
-		PaxosInstance noop = new PaxosInstance (1);
-		noop.setProposedRequestId (CommandIdKind.NOOP_ID);
-		assertTrue (noop.tryClaim (5, 1000));
-		long deadline = noop.releaseClaim (5, TimeUnit.MILLISECONDS.toNanos (200));
+		PaxosInstance noop = log.testAndSetEntry (1);
+		log.adopt (1, CommandIdKind.NOOP_ID);
+		assertTrue (log.tryClaim (noop, 5, 1000));
+		long deadline = log.releaseClaim (noop, 5, TimeUnit.MILLISECONDS.toNanos (200));
 
-		assertFalse (noop.tryClaim (5, deadline - 1));
-		assertEquals (1, noop.retryDelayMillis (5, deadline - 1));
-		assertTrue (noop.tryClaim (5, deadline));
+		assertFalse (log.tryClaim (noop, 5, deadline - 1));
+		assertEquals (1, log.retryDelayMillis (noop, 5, deadline - 1));
+		assertTrue (log.tryClaim (noop, 5, deadline));
 	}
 
 	@Test

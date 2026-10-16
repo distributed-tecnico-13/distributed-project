@@ -186,7 +186,8 @@ final class PaxosProposer {
 			if (!this.server_state.canProposeFor (ballot))
 				return;
 			int instance = entry.getInstanceNb ();
-			int phase_two_value = entry.pinPhaseTwoValue (ballot, entry.getValueToPropose ());
+			PaxosLog log = this.server_state.paxos_log;
+			int phase_two_value = log.pinPhaseTwoValue (entry, ballot, log.valueToPropose (entry));
 			List<Integer> acceptors = this.server_state.scheduler.acceptors (ballot);
 			if (this.runPhaseTwo (instance, ballot, phase_two_value, acceptors,
 					this.server_state.scheduler.classicQuorum (ballot)))
@@ -194,7 +195,7 @@ final class PaxosProposer {
 
 			this.finishSuccessfulPhaseTwo (entry, ballot, phase_two_value);
 		} finally {
-			entry.releaseClaim (ballot, TimeUnit.MILLISECONDS.toNanos (RETRY_DELAY_MILLIS));
+			this.server_state.paxos_log.releaseClaim (entry, ballot, TimeUnit.MILLISECONDS.toNanos (RETRY_DELAY_MILLIS));
 		}
 	}
 

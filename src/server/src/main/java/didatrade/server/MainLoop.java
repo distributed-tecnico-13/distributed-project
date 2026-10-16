@@ -131,10 +131,10 @@ public class MainLoop implements Runnable {
 			if (!this.pipeline.hasCapacity ())
 				break;
 			PaxosInstance entry = this.server_state.paxos_log.getEntry (instance);
-			if (entry == null || !entry.tryClaim (ballot, System.nanoTime ()))
+			if (entry == null || !this.server_state.paxos_log.tryClaim (entry, ballot, System.nanoTime ()))
 				continue;
 			if (!this.pipeline.submitTask ( () -> this.proposer.propose (entry, ballot))) {
-				entry.releaseClaim (ballot, 0);
+				this.server_state.paxos_log.releaseClaim (entry, ballot, 0);
 				break;
 			}
 			submitted = true;
@@ -181,7 +181,7 @@ public class MainLoop implements Runnable {
 			PaxosInstance entry = this.server_state.paxos_log.getEntry (instance);
 			if (entry == null)
 				continue;
-			long delay = entry.retryDelayMillis (ballot, now);
+			long delay = this.server_state.paxos_log.retryDelayMillis (entry, ballot, now);
 			if (delay >= 0)
 				earliest = Math.min (earliest, delay);
 		}

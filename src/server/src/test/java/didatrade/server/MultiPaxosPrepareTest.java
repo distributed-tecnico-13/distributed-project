@@ -126,9 +126,9 @@ class MultiPaxosPrepareTest {
 		assertNotNull (slot0);
 		assertNotNull (slot1);
 		assertNotNull (slot2);
-		assertEquals (301, slot0.getProposedRequestId ());
-		assertEquals (CommandIdKind.NOOP_ID, slot1.getProposedRequestId ());
-		assertEquals (401, slot2.getProposedRequestId ());
+		assertEquals (301, state.paxos_log.assignedRequest (0));
+		assertEquals (CommandIdKind.NOOP_ID, state.paxos_log.assignedRequest (1));
+		assertEquals (401, state.paxos_log.assignedRequest (2));
 	}
 
 	private DidaTradeServerState stateWithAcceptors (ServiceFactory factory) throws Exception {
