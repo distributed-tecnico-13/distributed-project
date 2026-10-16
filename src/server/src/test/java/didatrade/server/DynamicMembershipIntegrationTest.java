@@ -143,8 +143,8 @@ class DynamicMembershipIntegrationTest {
 			await ( () -> c.states[1].getCompletedBallot () >= 1);
 			PaxosInstance recovered = c.states[1].paxos_log.getEntry (0);
 			assertTrue (recovered.isDecided ());
-			assertEquals (1, recovered.getAcceptBallot ());
-			assertTrue (recovered.getCommandId () == 101 || recovered.getCommandId () == 201);
+			assertEquals (1, recovered.getDecisionBallot ());
+			assertTrue (recovered.getDecidedValue () == 101 || recovered.getDecidedValue () == 201);
 			assertTrue (c.phaseOneCalls[0].get () > 0);
 		}
 	}
@@ -169,7 +169,7 @@ class DynamicMembershipIntegrationTest {
 			c.ballot (2, 3);
 			assertTrue (c.phaseOneCalls[0].get () > 0, "the first transfer must recover the old acceptor group");
 			await ( () -> c.states[4].getLastExecutedInstance () >= 0);
-			assertEquals (101, c.states[4].paxos_log.getEntry (0).getCommandId ());
+			assertEquals (101, c.states[4].paxos_log.getEntry (0).getDecidedValue ());
 			assertEquals (100, c.states[4].trade_manager.balance (77));
 		}
 	}
@@ -313,7 +313,7 @@ class DynamicMembershipIntegrationTest {
 			await ( () -> c.states[5].getLastExecutedInstance () >= 1);
 			long fastVotes = List.of (2, 3, 4, 5, 6).stream ().filter (id -> {
 				PaxosInstance e = c.states[id].paxos_log.getEntry (1);
-				return e != null && e.getWriteBallot () == 2 && e.getAcceptedValue () == 201;
+				return e != null && e.getAcceptedBallot () == 2 && e.getAcceptedValue () == 201;
 			}).count ();
 			assertTrue (fastVotes >= 4, "new cohort did not use direct Fast voting");
 			assertEquals (200, c.states[5].getBalance (1, 771).balance ());

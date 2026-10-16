@@ -7,18 +7,25 @@ import java.util.Set;
 import didatrade.server.request.CommandIdKind;
 
 /**
- * One slot of the Paxos log: acceptor state, learner votes, the decision, and this server's
- * proposal bookkeeping.
+ * One slot of the Paxos log, kept in separate parts that are all guarded by this object's monitor:
+ * <ul>
+ * <li>the decision (top level): the value chosen for the slot and the ballot it was confirmed in,
+ * <li>{@code accepted}: what this server accepted as an acceptor; answers Phase 1,
+ * <li>{@code votes}: what the acceptors reported to this server as a learner, until a quorum agrees,
+ * <li>{@code proposal}: this server's own attempt to propose the slot as a leader.
+ * </ul>
  */
 public class PaxosInstance {
-	private int instance_nb;
-	private int command_id;
-	private int write_ballot;
-	private int accepted_value;
-	private int accept_ballot;
-	private final LearnInfo learn_info = new LearnInfo ();
+	private final int instance_nb;
+
+	// The decision. Only a value chosen by a quorum ends up here, whichever way we learned it.
 	private boolean decided;
+	private int decided_value;
+	private int decision_ballot = -1;
 	private boolean executed;
+
+	private final Accepted accepted = new Accepted ();
+	private final LearnInfo votes = new LearnInfo ();
 	// This server's attempt to propose the slot.
 	private final LocalProposal proposal = new LocalProposal ();
 
@@ -28,12 +35,6 @@ public class PaxosInstance {
 
 	public PaxosInstance(int id) {
 		this.instance_nb = id;
-		this.command_id = 0;
-		this.write_ballot = -1;
-		this.accepted_value = 0;
-		this.accept_ballot = -1;
-		this.decided = false;
-		this.executed = false;
 	}
 
 	public synchronized int getInstanceNb () {
@@ -44,30 +45,26 @@ public class PaxosInstance {
 
 	public synchronized boolean accept (int ballot, int value) {
 		// Defensive rejections, should never actually happen. TODO: Maybe remove them.
-		if (this.decided && value != this.command_id)
+		if (this.decided && value != this.decided_value)
 			return false;
-		if (ballot == this.write_ballot && value != this.accepted_value)
-			return false;
-		this.accepted_value = value;
-		this.write_ballot = ballot;
-		return true;
+		return this.accepted.accept (ballot, value);
 	}
 
 	public synchronized boolean isAccepted () {
-		return this.write_ballot != -1;
+		return this.accepted.exists ();
 	}
 
 	public synchronized int getAcceptedValue () {
-		return this.accepted_value;
+		return this.accepted.value;
 	}
 
-	public synchronized int getWriteBallot () {
-		return this.write_ballot;
+	public synchronized int getAcceptedBallot () {
+		return this.accepted.ballot;
 	}
 
 	// Value and ballot read together, so Phase 1 never pairs a value with the wrong ballot.
 	public synchronized AcceptedSnapshot getAcceptedSnapshot () {
-		return new AcceptedSnapshot (this.accepted_value, this.write_ballot);
+		return new AcceptedSnapshot (this.accepted.value, this.accepted.ballot);
 	}
 
 	// ---- Learner: votes from the acceptors ----
@@ -83,43 +80,38 @@ public class PaxosInstance {
 
 	// Returns true once this vote is stored and its value has a quorum.
 	private boolean recordVote (int ballot, int value, int server_id, int quorum) {
-		if (this.decided && value != this.command_id)
+		if (this.decided && value != this.decided_value)
 			return false;
-		if (!this.learn_info.recordVote (ballot, value, server_id))
+		if (!this.votes.recordVote (ballot, value, server_id))
 			return false;
-		return this.learn_info.acceptCount (ballot, value) >= quorum;
+		return this.votes.acceptCount (ballot, value) >= quorum;
 	}
 
 	// Decides on the value that has a quorum in the highest ballot
 	private boolean updateInstanceState (int quorum) {
-		int highest_ballot = this.learn_info.findHighestBallotWithQuorum (quorum);
+		int highest_ballot = this.votes.findHighestBallotWithQuorum (quorum);
 		if (highest_ballot < 0)
 			return false;
-		int chosen_value = this.learn_info.valueWithQuorum (highest_ballot, quorum);
-		if (chosen_value == CommandIdKind.ABSENT_ID
-				|| (this.decided && chosen_value != this.command_id))
+		int chosen_value = this.votes.valueWithQuorum (highest_ballot, quorum);
+		if (chosen_value == CommandIdKind.ABSENT_ID)
 			return false;
-		boolean advanced = !this.decided || highest_ballot > this.accept_ballot;
-		this.command_id = chosen_value;
-		this.accept_ballot = Math.max (this.accept_ballot, highest_ballot);
-		this.decided = true;
-		return advanced;
+		return this.confirm (highest_ballot, chosen_value);
 	}
 
 	public synchronized int findHighestBallotWithQuorum (int quorum) {
-		return this.learn_info.findHighestBallotWithQuorum (quorum);
+		return this.votes.findHighestBallotWithQuorum (quorum);
 	}
 
 	public synchronized int getAcceptCount (int ballot) {
-		return this.learn_info.acceptCount (ballot);
+		return this.votes.acceptCount (ballot);
 	}
 
 	public synchronized int getAcceptCount (int ballot, int value) {
-		return this.learn_info.acceptCount (ballot, value);
+		return this.votes.acceptCount (ballot, value);
 	}
 
 	public synchronized boolean cannotReachQuorum (int ballot, int quorum, int n_acceptors) {
-		return this.learn_info.cannotReachQuorum (ballot, quorum, n_acceptors);
+		return this.votes.cannotReachQuorum (ballot, quorum, n_acceptors);
 	}
 
 	// Not proof that nothing was chosen: on a 3-1 split the missing acceptor may still
@@ -129,42 +121,49 @@ public class PaxosInstance {
 	// sure a majority cannot be reached. Blocked states are possible, here the console must issue
 	// a new ballot.
 	public synchronized boolean fastRoundCollided (int ballot, int quorum, int n_acceptors) {
-		return this.learn_info.acceptCount (ballot) < quorum
-				&& (this.learn_info.responderCount (ballot) >= quorum
-						|| this.learn_info.cannotReachQuorum (ballot, quorum, n_acceptors));
+		return this.votes.acceptCount (ballot) < quorum
+				&& (this.votes.responderCount (ballot) >= quorum
+						|| this.votes.cannotReachQuorum (ballot, quorum, n_acceptors));
 	}
 
 	// ---- Decision ----
 
+	// Records the decision, for example after a successful classic Phase 2 or a state transfer.
+	// The first decision wins; true only if this call decided the slot.
 	public synchronized boolean decide (int ballot, int value) {
-		if (this.decided) {
-			// A successful classic reproposal of an already-chosen value confirms the
-			// higher ballot even if its asynchronous Learns never arrive.
-			if (this.command_id != value)
-				return false;
-			this.accept_ballot = Math.max (this.accept_ballot, ballot);
+		boolean first = !this.decided;
+		this.confirm (ballot, value);
+		return first;
+	}
+
+	// The single place that sets the decision: used for a quorum of votes, a successful Phase 2
+	// and a state transfer. A decided value never changes. A successful classic reproposal of an
+	// already-chosen value confirms the higher ballot even if its asynchronous Learns never
+	// arrive. True if the decision is new or its ballot rose.
+	private boolean confirm (int ballot, int value) {
+		if (this.decided && value != this.decided_value)
 			return false;
-		}
-		this.command_id = value;
-		this.accept_ballot = ballot;
+		boolean advanced = !this.decided || ballot > this.decision_ballot;
+		this.decided_value = value;
+		this.decision_ballot = Math.max (this.decision_ballot, ballot);
 		this.decided = true;
-		return true;
+		return advanced;
 	}
 
 	public synchronized boolean isDecided () {
 		return this.decided;
 	}
 
-	public synchronized int getCommandId () {
-		return this.command_id;
+	public synchronized int getDecidedValue () {
+		return this.decided_value;
 	}
 
-	public synchronized int getAcceptBallot () {
-		return this.accept_ballot;
+	public synchronized int getDecisionBallot () {
+		return this.decision_ballot;
 	}
 
 	public synchronized boolean isNoop () {
-		return CommandIdKind.isNoop (this.command_id);
+		return CommandIdKind.isNoop (this.decided_value);
 	}
 
 	// ---- Proposer: assigned request, claim and retry backoff ----
@@ -175,9 +174,9 @@ public class PaxosInstance {
 
 	// A decided value always wins. Otherwise the request assigned to this slot: by the leader
 	// (from a client, or a value recovered in Phase 1), by a Fast vote,
-	// or the value of an accepted Phase 2. //TODO: Make clear where and when which is stored
+	// or the value of an accepted Phase 2.
 	public synchronized int getValueToPropose () {
-		return this.decided ? this.command_id : this.proposal.proposed_request_id;
+		return this.decided ? this.decided_value : this.proposal.proposed_request_id;
 	}
 
 	// The request this slot currently owns (decided, else accepted, else proposed), or ABSENT once
@@ -186,8 +185,8 @@ public class PaxosInstance {
 		if (this.executed)
 			return CommandIdKind.ABSENT_ID;
 		if (this.decided)
-			return this.command_id;
-		return this.isAccepted () ? this.accepted_value : this.proposal.proposed_request_id;
+			return this.decided_value;
+		return this.accepted.exists () ? this.accepted.value : this.proposal.proposed_request_id;
 	}
 
 	public synchronized void setProposedRequestId (int request_id) {
@@ -210,7 +209,7 @@ public class PaxosInstance {
 	public synchronized boolean tryClaim (int ballot, long now_nanos) {
 		if (this.proposal.claimed || CommandIdKind.isAbsent (this.getValueToPropose ()))
 			return false;
-		if (this.decided && this.accept_ballot >= ballot)
+		if (this.decided && this.decision_ballot >= ballot)
 			return false;
 		if (this.proposal.retry_ballot == ballot
 				&& now_nanos < this.proposal.retry_after_nanos)
@@ -230,7 +229,7 @@ public class PaxosInstance {
 
 	// -1 means no retry is scheduled; a positive result is a bounded wait.
 	public synchronized long retryDelayMillis (int ballot, long now_nanos) {
-		if (this.proposal.claimed || (this.decided && this.accept_ballot >= ballot)
+		if (this.proposal.claimed || (this.decided && this.decision_ballot >= ballot)
 				|| CommandIdKind.isAbsent (this.getValueToPropose ()))
 			return -1;
 		if (this.proposal.retry_ballot != ballot
@@ -251,6 +250,26 @@ public class PaxosInstance {
 	}
 
 	// ---- Nested types ----
+
+	// What this server accepted as an acceptor: the highest ballot it accepted a value in, and
+	// that value. Independent of the decision: Phase 1 must report exactly this.
+	private static final class Accepted {
+		private int ballot = -1;
+		private int value;
+
+		boolean exists () {
+			return this.ballot != -1;
+		}
+
+		boolean accept (int ballot, int value) {
+			// A ballot never sends two different values for one slot.
+			if (ballot == this.ballot && value != this.value)
+				return false;
+			this.ballot = ballot;
+			this.value = value;
+			return true;
+		}
+	}
 
 	private static final class LearnInfo {
 		// Mapping ballot numbers to values to votes for that value

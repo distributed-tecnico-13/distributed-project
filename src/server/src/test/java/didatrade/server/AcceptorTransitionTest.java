@@ -59,8 +59,8 @@ class AcceptorTransitionTest {
 
 		assertTrue (result.accepted);
 		assertEquals (5, result.maxballot);
-		assertEquals (100, entry.getCommandId ());
-		assertEquals (4, entry.getAcceptBallot ());
+		assertEquals (100, entry.getDecidedValue ());
+		assertEquals (4, entry.getDecisionBallot ());
 		PaxosInstance.AcceptedSnapshot snapshot = entry.getAcceptedSnapshot ();
 		assertEquals (100, snapshot.value);
 		assertEquals (5, snapshot.valballot);
@@ -80,8 +80,8 @@ class AcceptorTransitionTest {
 		assertFalse (result.accepted);
 		assertEquals (8, result.maxballot);
 		assertEquals (8, state.getCurrentBallot ());
-		assertEquals (100, entry.getCommandId ());
-		assertEquals (4, entry.getAcceptBallot ());
+		assertEquals (100, entry.getDecidedValue ());
+		assertEquals (4, entry.getDecisionBallot ());
 		PaxosInstance.AcceptedSnapshot snapshot = entry.getAcceptedSnapshot ();
 		assertEquals (100, snapshot.value);
 		assertEquals (4, snapshot.valballot);

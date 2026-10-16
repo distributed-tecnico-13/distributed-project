@@ -112,7 +112,7 @@ class StateTransferTest {
 		assertTrue (newVote.accepted);
 		assertEquals (0, newVote.instance);
 		assertTrue (StateTransfer.install (s, empty), "a delayed retry may arrive after Fast opens");
-		assertEquals (2, s.paxos_log.getEntry (0).getWriteBallot ());
+		assertEquals (2, s.paxos_log.getEntry (0).getAcceptedBallot ());
 		assertEquals (301, s.paxos_log.getEntry (0).getAcceptedValue ());
 	}
 

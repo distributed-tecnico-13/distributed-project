@@ -131,7 +131,7 @@ class PaxosPipelineTest {
 
 		assertTrue (log.adopt (5, 301));
 		assertFalse (log.adopt (5, 302));
-		assertEquals (301, log.getEntry (5).getCommandId ());
+		assertEquals (301, log.getEntry (5).getDecidedValue ());
 	}
 
 	@Test

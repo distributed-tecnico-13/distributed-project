@@ -44,7 +44,7 @@ class FastPaxosReviewRegressionTest {
 		PaxosInstance slot = new PaxosInstance (0);
 		assertTrue (slot.decide (0, 100));
 		assertFalse (slot.decide (1, 100));
-		assertEquals (1, slot.getAcceptBallot ());
+		assertEquals (1, slot.getDecisionBallot ());
 		assertFalse (slot.tryClaim (1, System.nanoTime ()));
 		assertTrue (slot.tryClaim (2, System.nanoTime ()));
 	}
@@ -114,6 +114,6 @@ class FastPaxosReviewRegressionTest {
 		assertTrue (entry.accept (0, 234));
 		assertTrue (log.adopt (4, 345));
 		assertEquals (234, entry.getAcceptedValue ());
-		assertEquals (0, entry.getWriteBallot ());
+		assertEquals (0, entry.getAcceptedBallot ());
 	}
 }

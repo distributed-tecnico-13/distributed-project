@@ -26,7 +26,7 @@ class PaxosInstanceLearnTest {
 		assertTrue (entry.recordLearn (5, 100, 1, 2));
 		assertEquals (2, entry.getAcceptCount (5));
 		assertTrue (entry.isDecided ());
-		assertEquals (100, entry.getCommandId ());
+		assertEquals (100, entry.getDecidedValue ());
 	}
 
 	@Test
@@ -40,7 +40,7 @@ class PaxosInstanceLearnTest {
 
 		assertEquals (2, entry.getAcceptCount (4));
 		assertEquals (1, entry.getAcceptCount (5));
-		assertEquals (-1, entry.getAcceptBallot ());
+		assertEquals (-1, entry.getDecisionBallot ());
 		assertFalse (entry.isDecided ());
 	}
 
@@ -54,8 +54,8 @@ class PaxosInstanceLearnTest {
 		assertFalse (entry.recordLearn (5, 100, 0, 2));
 		assertFalse (entry.recordLearn (6, 200, 2, 2));
 
-		assertEquals (100, entry.getCommandId ());
-		assertEquals (5, entry.getAcceptBallot ());
+		assertEquals (100, entry.getDecidedValue ());
+		assertEquals (5, entry.getDecisionBallot ());
 		assertEquals (2, entry.getAcceptCount (5));
 		assertEquals (0, entry.getAcceptCount (6));
 	}
@@ -98,8 +98,8 @@ class PaxosInstanceLearnTest {
 		assertEquals (2, entry.getAcceptCount (4));
 		assertEquals (1, entry.getAcceptCount (5));
 		assertTrue (entry.isDecided ());
-		assertEquals (100, entry.getCommandId ());
-		assertEquals (4, entry.getAcceptBallot ());
+		assertEquals (100, entry.getDecidedValue ());
+		assertEquals (4, entry.getDecisionBallot ());
 	}
 
 	@Test
@@ -112,8 +112,8 @@ class PaxosInstanceLearnTest {
 		assertFalse (entry.recordLearn (7, 100, 0, 2));
 		assertTrue (entry.recordLearn (7, 100, 1, 2));
 
-		assertEquals (100, entry.getCommandId ());
-		assertEquals (7, entry.getAcceptBallot ());
+		assertEquals (100, entry.getDecidedValue ());
+		assertEquals (7, entry.getDecisionBallot ());
 		assertFalse (entry.recordLearn (7, 100, 0, 2));
 	}
 
@@ -127,8 +127,8 @@ class PaxosInstanceLearnTest {
 		assertFalse (entry.recordLearn (4, 100, 2, 2));
 		assertFalse (entry.recordLearn (4, 100, 0, 2));
 
-		assertEquals (100, entry.getCommandId ());
-		assertEquals (7, entry.getAcceptBallot ());
+		assertEquals (100, entry.getDecidedValue ());
+		assertEquals (7, entry.getDecisionBallot ());
 	}
 	@Test
 	void fastBallotTracksCompetingValuesIndependently () {
@@ -142,7 +142,7 @@ class PaxosInstanceLearnTest {
 
 		assertTrue (entry.recordLearn (5, 100, 2, 2));
 		assertEquals (2, entry.getAcceptCount (5, 100));
-		assertEquals (100, entry.getCommandId ());
+		assertEquals (100, entry.getDecidedValue ());
 	}
 
 	@Test
@@ -201,7 +201,7 @@ class PaxosInstanceLearnTest {
 		assertTrue (entry.recordLearn (5, 100, 2, 2));
 
 		assertTrue (entry.isDecided ());
-		assertEquals (100, entry.getCommandId ());
+		assertEquals (100, entry.getDecidedValue ());
 	}
 
 	@Test

@@ -28,14 +28,14 @@ class FastPaxosLearnServiceTest {
 			assertFalse (state.paxos_log.getEntry (0).isDecided ());
 			learn (service, 0, ballot, 100, acceptors.get (3));
 			assertTrue (state.paxos_log.getEntry (0).isDecided ());
-			assertEquals (100, state.paxos_log.getEntry (0).getCommandId ());
+			assertEquals (100, state.paxos_log.getEntry (0).getDecidedValue ());
 
 			for (int i = 0; i < 2; i++)
 				learnClassic (service, 1, ballot, 200, acceptors.get (i));
 			assertFalse (state.paxos_log.getEntry (1).isDecided ());
 			learnClassic (service, 1, ballot, 200, acceptors.get (2));
 			assertTrue (state.paxos_log.getEntry (1).isDecided ());
-			assertEquals (200, state.paxos_log.getEntry (1).getCommandId ());
+			assertEquals (200, state.paxos_log.getEntry (1).getDecidedValue ());
 		}
 	}
 
@@ -51,7 +51,7 @@ class FastPaxosLearnServiceTest {
 
 		PaxosInstance entry = state.paxos_log.getEntry (0);
 		assertTrue (entry.isDecided ());
-		assertEquals (100, entry.getCommandId ());
+		assertEquals (100, entry.getDecidedValue ());
 		assertEquals (0, state.getCurrentBallot ());
 	}
 
@@ -144,7 +144,7 @@ class FastPaxosLearnServiceTest {
 		learn (service, 0, 0, 100, 4);
 
 		assertTrue (state.paxos_log.getEntry (0).isDecided ());
-		assertEquals (100, state.paxos_log.getEntry (0).getCommandId ());
+		assertEquals (100, state.paxos_log.getEntry (0).getDecidedValue ());
 	}
 
 	@Test
@@ -157,7 +157,7 @@ class FastPaxosLearnServiceTest {
 		assertFalse (state.paxos_log.getEntry (0).isDecided ());
 		learnClassic (service, 0, 1, 100, 2);
 		assertTrue (state.paxos_log.getEntry (0).isDecided ());
-		assertEquals (100, state.paxos_log.getEntry (0).getCommandId ());
+		assertEquals (100, state.paxos_log.getEntry (0).getDecidedValue ());
 	}
 
 	private void learnClassic (

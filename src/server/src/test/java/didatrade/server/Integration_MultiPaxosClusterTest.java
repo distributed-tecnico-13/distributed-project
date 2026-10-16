@@ -91,7 +91,7 @@ class Integration_MultiPaxosClusterTest {
 		try (Cluster cluster = new Cluster ()) {
 			assertTrue (cluster.broadcastAddUser (30_001, 300, 777, 33));
 			assertTrue (awaitCondition ( () -> allDecided (cluster.states, 0), 5, TimeUnit.SECONDS));
-			int chosen = cluster.states[0].paxos_log.getEntry (0).getCommandId ();
+			int chosen = cluster.states[0].paxos_log.getEntry (0).getDecidedValue ();
 
 			// Schedule A: ballot 1 is led by replica 1.
 			cluster.states[1].setCurrentBallot (1);
@@ -99,13 +99,13 @@ class Integration_MultiPaxosClusterTest {
 
 			assertTrue (awaitCondition ( () -> cluster.states[1].hasRunPhaseOne (1),
 					5, TimeUnit.SECONDS));
-			assertTrue (awaitCondition ( () -> cluster.states[0].paxos_log.getEntry (0).getWriteBallot () >= 1
-					&& cluster.states[1].paxos_log.getEntry (0).getWriteBallot () >= 1,
+			assertTrue (awaitCondition ( () -> cluster.states[0].paxos_log.getEntry (0).getAcceptedBallot () >= 1
+					&& cluster.states[1].paxos_log.getEntry (0).getAcceptedBallot () >= 1,
 					5, TimeUnit.SECONDS));
 
 			for (DidaTradeServerState state : cluster.states) {
 				PaxosInstance entry = state.paxos_log.getEntry (0);
-				assertEquals (chosen, entry.getCommandId ());
+				assertEquals (chosen, entry.getDecidedValue ());
 				assertEquals (777, state.trade_manager.balance (300));
 			}
 		}
@@ -138,12 +138,12 @@ class Integration_MultiPaxosClusterTest {
 			assertTrue (late_copy.get (15, TimeUnit.SECONDS));
 			assertTrue (awaitCondition ( () -> {
 				PaxosInstance entry = cluster.states[2].paxos_log.getEntry (0);
-				return entry != null && entry.isDecided () && entry.getCommandId () == request_id
-						&& entry.getAcceptBallot () >= 1
+				return entry != null && entry.isDecided () && entry.getDecidedValue () == request_id
+						&& entry.getDecisionBallot () >= 1
 						&& cluster.states[2].trade_manager.balance (500) == 640;
 			}, 10, TimeUnit.SECONDS));
 			for (DidaTradeServerState state : cluster.states) {
-				assertEquals (request_id, state.paxos_log.getEntry (0).getCommandId ());
+				assertEquals (request_id, state.paxos_log.getEntry (0).getDecidedValue ());
 				assertEquals (640, state.trade_manager.balance (500));
 			}
 		}
@@ -210,7 +210,7 @@ class Integration_MultiPaxosClusterTest {
 
 			int private_slot = slotOf (cluster.states[0], private_request);
 			for (DidaTradeServerState state : cluster.states) {
-				assertEquals (quorum_request, state.paxos_log.getEntry (0).getCommandId ());
+				assertEquals (quorum_request, state.paxos_log.getEntry (0).getDecidedValue ());
 				assertEquals (private_slot, slotOf (state, private_request));
 				assertEquals (111, state.trade_manager.balance (quorum_user));
 				assertEquals (222, state.trade_manager.balance (private_user));
@@ -267,7 +267,7 @@ class Integration_MultiPaxosClusterTest {
 		PaxosInstance entry = state.paxos_log.getEntry (slot);
 		if (entry == null || !entry.isDecided ())
 			return -1;
-		return entry.getCommandId ();
+		return entry.getDecidedValue ();
 	}
 
 	private static int slotOf (DidaTradeServerState state, int command_id) {

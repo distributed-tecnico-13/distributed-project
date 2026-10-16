@@ -104,7 +104,7 @@ final class PaxosProposer {
 			return false;
 		for (int instance = 0; instance <= this.recovery_highest_instance; instance++) {
 			PaxosInstance entry = this.server_state.paxos_log.getEntry (instance);
-			if (entry == null || !entry.isDecided () || entry.getAcceptBallot () < ballot)
+			if (entry == null || !entry.isDecided () || entry.getDecisionBallot () < ballot)
 				return false;
 		}
 		return true;
@@ -161,7 +161,7 @@ final class PaxosProposer {
 		DidaTradePaxos.InstallStateRequest.Builder builder = DidaTradePaxos.InstallStateRequest.newBuilder ()
 				.setBallot (ballot);
 		for (int slot = 0; slot < this.recoveryLimit (ballot); slot++) {
-			int value = this.server_state.paxos_log.getEntry (slot).getCommandId ();
+			int value = this.server_state.paxos_log.getEntry (slot).getDecidedValue ();
 			builder.addEntries (DidaTradePaxos.PhaseOneResponseLogObject.newBuilder ()
 					.setInstance (slot).setValue (value).setValballot (ballot));
 		}

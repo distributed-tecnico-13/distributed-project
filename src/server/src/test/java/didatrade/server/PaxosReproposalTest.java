@@ -26,7 +26,7 @@ class PaxosReproposalTest {
 
 		// Successful higher-ballot reproposal must not be repeated in this ballot.
 		assertFalse (entry.decide (5, 101)); // slot was already decided
-		assertEquals (5, entry.getAcceptBallot ());
+		assertEquals (5, entry.getDecisionBallot ());
 		entry.releaseClaim (5, 0);
 		assertFalse (entry.tryClaim (5, Long.MAX_VALUE));
 		assertTrue (entry.tryClaim (6, Long.MAX_VALUE));

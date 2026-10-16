@@ -102,7 +102,7 @@ public class PaxosLog {
 			if (entry.getProposedRequestId () == request_id)
 				return true;
 			if (entry.isDecided ())
-				return entry.getCommandId () == request_id;
+				return entry.getDecidedValue () == request_id;
 		}
 		if (entry == null)
 			entry = this.testAndSetEntry (instance);

@@ -134,7 +134,7 @@ class NoopTest {
 		assertFalse (entry.recordLearn (5, CommandIdKind.NOOP_ID, 0, 2));
 		assertTrue (entry.recordLearn (5, CommandIdKind.NOOP_ID, 1, 2));
 		assertTrue (entry.isNoop ());
-		assertEquals (CommandIdKind.NOOP_ID, entry.getCommandId ());
+		assertEquals (CommandIdKind.NOOP_ID, entry.getDecidedValue ());
 		assertEquals (0, entry.getAcceptedValue ());
 	}
 
