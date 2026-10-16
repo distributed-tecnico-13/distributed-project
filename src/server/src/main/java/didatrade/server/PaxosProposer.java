@@ -33,6 +33,8 @@ final class PaxosProposer {
 		this.server_state = state;
 	}
 
+	// ---- Phase 1 and recovery ----
+
 	// Runs Phase 1 once per ballot (leader only) and adopts the recovered values into the log.
 	// Returns true once the ballot is prepared.
 	boolean prepare (int ballot) {
@@ -64,6 +66,33 @@ final class PaxosProposer {
 		this.opened_fast_ballot = -1;
 		this.server_state.setRanPhaseOne (ballot);
 		return true;
+	}
+
+	// Sends Phase 1 and waits for the processor. A rejection raises the current ballot.
+	private PhaseOneResult runPhaseOne (
+			List<Integer> acceptors, int n_acceptors, int ballot, int low_ballot) {
+		DidaTradePaxos.PhaseOneRequest request = DidaTradePaxos.PhaseOneRequest
+				.newBuilder ().setRequestballot (ballot).build ();
+		PhaseOneResponseProcessor processor = new PhaseOneResponseProcessor (
+				this.server_state.scheduler, ballot, low_ballot);
+		ArrayList<DidaTradePaxos.PhaseOneReply> responses = new ArrayList<> ();
+		GenericResponseCollector<DidaTradePaxos.PhaseOneReply> collector = new GenericResponseCollector<> (
+				responses, n_acceptors, processor);
+		for (int acceptor : acceptors) {
+			CollectorStreamObserver<DidaTradePaxos.PhaseOneReply> observer = new CollectorStreamObserver<> (
+					collector);
+			this.server_state.async_stubs[acceptor]
+					.withDeadlineAfter (RPC_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+					.phaseone (request, observer);
+		}
+		collector.waitUntilDone ();
+
+		PhaseOneResult result = new PhaseOneResult (processor);
+		if (result.aborted && result.maxballot > this.server_state.getCurrentBallot ()) {
+			this.server_state.setCurrentBallot (result.maxballot);
+			this.server_state.wakeMainLoop ();
+		}
+		return result;
 	}
 
 	// Phase 1 only reports accepted slots; every unseen slot below the highest one gets a noop, so
@@ -98,6 +127,8 @@ final class PaxosProposer {
 		}
 		return true;
 	}
+
+	// ---- Opening a Fast round ----
 
 	// Distinct from isFastRoundOpen(), which is local acceptor state.
 	boolean hasFastOpeningQuorum (int ballot) {
@@ -145,6 +176,8 @@ final class PaxosProposer {
 		return false;
 	}
 
+	// ---- State transfer (dynamic membership) ----
+
 	boolean transferComplete (int ballot) {
 		return this.server_state.getCompletedBallot () == ballot;
 	}
@@ -183,6 +216,8 @@ final class PaxosProposer {
 		return true;
 	}
 
+	// ---- Phase 2 ----
+
 	// Phase 2 for one slot.
 	void propose (PaxosInstance entry, int ballot) {
 		try {
@@ -199,40 +234,6 @@ final class PaxosProposer {
 		} finally {
 			entry.releaseClaim (ballot, TimeUnit.MILLISECONDS.toNanos (RETRY_DELAY_MILLIS));
 		}
-	}
-
-	// Phase 2 reached a classic quorum. Even an already-decided slot needs its
-	// higher-ballot completion recorded; otherwise newballot may wait forever.
-	void finishSuccessfulPhaseTwo (PaxosInstance entry, int ballot, int value) {
-		entry.decide (ballot, value);
-		this.server_state.updateCompletedBallot ();
-	}
-
-	// Sends Phase 1 and waits for the processor. A rejection raises the current ballot.
-	private PhaseOneResult runPhaseOne (
-			List<Integer> acceptors, int n_acceptors, int ballot, int low_ballot) {
-		DidaTradePaxos.PhaseOneRequest request = DidaTradePaxos.PhaseOneRequest
-				.newBuilder ().setRequestballot (ballot).build ();
-		PhaseOneResponseProcessor processor = new PhaseOneResponseProcessor (
-				this.server_state.scheduler, ballot, low_ballot);
-		ArrayList<DidaTradePaxos.PhaseOneReply> responses = new ArrayList<> ();
-		GenericResponseCollector<DidaTradePaxos.PhaseOneReply> collector = new GenericResponseCollector<> (
-				responses, n_acceptors, processor);
-		for (int acceptor : acceptors) {
-			CollectorStreamObserver<DidaTradePaxos.PhaseOneReply> observer = new CollectorStreamObserver<> (
-					collector);
-			this.server_state.async_stubs[acceptor]
-					.withDeadlineAfter (RPC_TIMEOUT_SECONDS, TimeUnit.SECONDS)
-					.phaseone (request, observer);
-		}
-		collector.waitUntilDone ();
-
-		PhaseOneResult result = new PhaseOneResult (processor);
-		if (result.aborted && result.maxballot > this.server_state.getCurrentBallot ()) {
-			this.server_state.setCurrentBallot (result.maxballot);
-			this.server_state.wakeMainLoop ();
-		}
-		return result;
 	}
 
 	/**
@@ -269,6 +270,15 @@ final class PaxosProposer {
 		}
 		return true;
 	}
+
+	// Phase 2 reached a classic quorum. Even an already-decided slot needs its
+	// higher-ballot completion recorded; otherwise newballot may wait forever.
+	void finishSuccessfulPhaseTwo (PaxosInstance entry, int ballot, int value) {
+		entry.decide (ballot, value);
+		this.server_state.updateCompletedBallot ();
+	}
+
+	// ---- Result types ----
 
 	/** What Phase 1 recovered: the command id per slot, and whether the attempt was aborted. */
 	static final class PhaseOneResult {

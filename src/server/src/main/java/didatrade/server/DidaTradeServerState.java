@@ -91,6 +91,16 @@ public final class DidaTradeServerState {
 		this.main_loop_worker.start ();
 	}
 
+	// Test-only construction avoids starting RPC channels and the MainLoop thread;
+	// the checks this makes necessary are collected in TestHelper.
+	DidaTradeServerState() {
+		this.current_ballot = 0;
+		this.debug_state = new DebugState ();
+		this.last_executed_instance = -1;
+	}
+
+	// ---- Plumbing: accessors, MainLoop wake-up and debug ----
+
 	public int getMyId () {
 		return this.my_id;
 	}
@@ -116,6 +126,20 @@ public final class DidaTradeServerState {
 			this.main_loop.wakeup ();
 	}
 
+	public synchronized DebugState getDebugState () {
+		return this.debug_state;
+	}
+
+	public void applyDebugState () {
+		this.debug_state.apply ();
+	}
+
+	public void setDebugMode (int mode) {
+		this.debug_state.setDebugMode (mode);
+	}
+
+	// ---- Ballot (shared by all roles) ----
+
 	public synchronized int getCurrentBallot () {
 		return this.current_ballot;
 	}
@@ -131,56 +155,11 @@ public final class DidaTradeServerState {
 			this.fastpaxos_on = false;
 	}
 
+	// ---- Proposer (leader) ----
+
 	// True if ballot is the current ballot and this replica is its leader.
 	public synchronized boolean canProposeFor (int ballot) {
 		return ballot == this.current_ballot && this.scheduler.leader (ballot) == this.my_id;
-	}
-
-	// Dynamic membership: set once the recovered prefix was installed here.
-	public synchronized boolean membershipTransferred () {
-		return this.membership_transferred;
-	}
-
-	synchronized void noteMembershipTransferred () {
-		this.membership_transferred = true;
-	}
-
-	public record BalanceResult(int balance, int lastExecutedInstance) {
-	}
-
-	// Waits until minInstance (the newest instance the client has seen) is executed, so a read is
-	// ordered after the client's earlier commands.
-	public BalanceResult getBalance (int minInstance, int userid) {
-		this.waitForInstanceExecution (minInstance);
-		synchronized (this) {
-			return new BalanceResult (this.trade_manager.balance (userid), this.last_executed_instance);
-		}
-	}
-
-	synchronized void waitForInstanceExecution (int instance) {
-		// Starts at -1, so a client that has observed nothing never waits.
-		while (!isExecuted (instance)) {
-			try {
-				wait ();
-			} catch (InterruptedException e) {
-				Thread.currentThread ().interrupt ();
-				throw new RuntimeException ("Thread interrupted while waiting for instance execution", e);
-			}
-		}
-	}
-
-	public synchronized boolean isExecuted (int instance) {
-		return this.last_executed_instance >= instance;
-	}
-
-	// Only the executor advances this, in log order, so every lower instance is executed too.
-	public synchronized void setLastExecutedInstance (int instance) {
-		this.last_executed_instance = instance;
-		this.notifyAll ();
-	}
-
-	public synchronized int getLastExecutedInstance () {
-		return this.last_executed_instance;
 	}
 
 	static boolean canProposeFor (
@@ -188,13 +167,21 @@ public final class DidaTradeServerState {
 		return ballot >= 0 && ballot == current_ballot && leader == server_id;
 	}
 
-	// Test-only construction avoids starting RPC channels and the MainLoop thread;
-	// the checks this makes necessary are collected in TestHelper.
-	DidaTradeServerState() {
-		this.current_ballot = 0;
-		this.debug_state = new DebugState ();
-		this.last_executed_instance = -1;
+	// Leader view: this replica leads a Fast ballot and has finished Phase 1 for it.
+	public synchronized boolean canCoordinateFastRound (int ballot) {
+		return this.canProposeFor (ballot) && this.scheduler.fastpaxos (ballot)
+				&& this.hasRunPhaseOne (ballot);
 	}
+
+	synchronized boolean hasRunPhaseOne (int ballot) {
+		return this.last_phase_one_completed_ballot == ballot;
+	}
+
+	synchronized void setRanPhaseOne (int ballot) {
+		this.last_phase_one_completed_ballot = ballot;
+	}
+
+	// ---- Acceptor: promise, accept and Fast votes ----
 
 	// Phase 1 promise
 	public synchronized PhaseOneState processPhaseOne (int ballot) {
@@ -224,12 +211,6 @@ public final class DidaTradeServerState {
 	public synchronized boolean isFastRoundOpen (int ballot) {
 		return this.fastpaxos_on && ballot == this.current_ballot
 				&& TestHelper.hasScheduler (this) && this.scheduler.fastpaxos (ballot);
-	}
-
-	// Leader view: this replica leads a Fast ballot and has finished Phase 1 for it.
-	public synchronized boolean canCoordinateFastRound (int ballot) {
-		return this.canProposeFor (ballot) && this.scheduler.fastpaxos (ballot)
-				&& this.hasRunPhaseOne (ballot);
 	}
 
 	// Acceptor check for an openfast request: a Fast ballot that is not older than the current one.
@@ -267,6 +248,25 @@ public final class DidaTradeServerState {
 		boolean accepted = entry.accept (ballot, request_id);
 		return new FastVoteState (accepted, ballot, entry.getInstanceNb ());
 	}
+
+	public synchronized boolean getFastPaxosMode () {
+		return this.fastpaxos_on;
+	}
+
+	public synchronized void setFastPaxosMode (boolean mode) {
+		this.fastpaxos_on = mode;
+	}
+
+	// Dynamic membership: set once the recovered prefix was installed here.
+	public synchronized boolean membershipTransferred () {
+		return this.membership_transferred;
+	}
+
+	synchronized void noteMembershipTransferred () {
+		this.membership_transferred = true;
+	}
+
+	// ---- Learner: Fast collisions and ballot completion ----
 
 	// If the next ballot's leader has crashed, the system stays blocked until the console
 	// issues a newer ballot.
@@ -320,33 +320,47 @@ public final class DidaTradeServerState {
 		return this.last_completed_ballot;
 	}
 
-	synchronized boolean hasRunPhaseOne (int ballot) {
-		return this.last_phase_one_completed_ballot == ballot;
+	// ---- Execution and client reads ----
+
+	public record BalanceResult(int balance, int lastExecutedInstance) {
 	}
 
-	synchronized void setRanPhaseOne (int ballot) {
-		this.last_phase_one_completed_ballot = ballot;
+	// Waits until minInstance (the newest instance the client has seen) is executed, so a read is
+	// ordered after the client's earlier commands.
+	public BalanceResult getBalance (int minInstance, int userid) {
+		this.waitForInstanceExecution (minInstance);
+		synchronized (this) {
+			return new BalanceResult (this.trade_manager.balance (userid), this.last_executed_instance);
+		}
 	}
 
-	public synchronized boolean getFastPaxosMode () {
-		return this.fastpaxos_on;
+	synchronized void waitForInstanceExecution (int instance) {
+		// Starts at -1, so a client that has observed nothing never waits.
+		while (!isExecuted (instance)) {
+			try {
+				wait ();
+			} catch (InterruptedException e) {
+				Thread.currentThread ().interrupt ();
+				throw new RuntimeException ("Thread interrupted while waiting for instance execution", e);
+			}
+		}
 	}
 
-	public synchronized void setFastPaxosMode (boolean mode) {
-		this.fastpaxos_on = mode;
+	public synchronized boolean isExecuted (int instance) {
+		return this.last_executed_instance >= instance;
 	}
 
-	public synchronized DebugState getDebugState () {
-		return this.debug_state;
+	// Only the executor advances this, in log order, so every lower instance is executed too.
+	public synchronized void setLastExecutedInstance (int instance) {
+		this.last_executed_instance = instance;
+		this.notifyAll ();
 	}
 
-	public void applyDebugState () {
-		this.debug_state.apply ();
+	public synchronized int getLastExecutedInstance () {
+		return this.last_executed_instance;
 	}
 
-	public void setDebugMode (int mode) {
-		this.debug_state.setDebugMode (mode);
-	}
+	// ---- Result types ----
 
 	public static final class FastVoteState {
 		final boolean accepted;

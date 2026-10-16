@@ -38,6 +38,12 @@ public class PaxosInstance {
 		this.executed = false;
 	}
 
+	public synchronized int getInstanceNb () {
+		return this.instance_nb;
+	}
+
+	// ---- Acceptor: accepted value and ballot ----
+
 	public synchronized boolean accept (int ballot, int value) {
 		// Defensive rejections, should never actually happen. TODO: Maybe remove them.
 		if (this.decided && value != this.command_id)
@@ -53,14 +59,6 @@ public class PaxosInstance {
 		return this.write_ballot != -1;
 	}
 
-	public synchronized boolean isNoop () {
-		return CommandIdKind.isNoop (this.command_id);
-	}
-
-	public synchronized int getInstanceNb () {
-		return this.instance_nb;
-	}
-
 	public synchronized int getAcceptedValue () {
 		return this.accepted_value;
 	}
@@ -73,6 +71,8 @@ public class PaxosInstance {
 	public synchronized AcceptedSnapshot getAcceptedSnapshot () {
 		return new AcceptedSnapshot (this.accepted_value, this.write_ballot);
 	}
+
+	// ---- Learner: votes from the acceptors ----
 
 	// Learner: counts one acceptor's vote. True if this vote newly decided the slot or raised its
 	// decision ballot.
@@ -135,6 +135,41 @@ public class PaxosInstance {
 				&& (this.learn_info.responderCount (ballot) >= quorum
 						|| this.learn_info.cannotReachQuorum (ballot, quorum, n_acceptors));
 	}
+
+	// ---- Decision ----
+
+	public synchronized boolean decide (int ballot, int value) {
+		if (this.decided) {
+			// A successful classic reproposal of an already-chosen value confirms the
+			// higher ballot even if its asynchronous Learns never arrive.
+			if (this.command_id != value)
+				return false;
+			this.accept_ballot = Math.max (this.accept_ballot, ballot);
+			return false;
+		}
+		this.command_id = value;
+		this.accept_ballot = ballot;
+		this.decided = true;
+		return true;
+	}
+
+	public synchronized boolean isDecided () {
+		return this.decided;
+	}
+
+	public synchronized int getCommandId () {
+		return this.command_id;
+	}
+
+	public synchronized int getAcceptBallot () {
+		return this.accept_ballot;
+	}
+
+	public synchronized boolean isNoop () {
+		return CommandIdKind.isNoop (this.command_id);
+	}
+
+	// ---- Proposer: assigned request, claim and retry backoff ----
 
 	public synchronized int getProposedRequestId () {
 		return this.proposal.proposed_request_id;
@@ -207,32 +242,7 @@ public class PaxosInstance {
 		return Math.max (1, (remaining + 999_999) / 1_000_000);
 	}
 
-	public synchronized boolean decide (int ballot, int value) {
-		if (this.decided) {
-			// A successful classic reproposal of an already-chosen value confirms the
-			// higher ballot even if its asynchronous Learns never arrive.
-			if (this.command_id != value)
-				return false;
-			this.accept_ballot = Math.max (this.accept_ballot, ballot);
-			return false;
-		}
-		this.command_id = value;
-		this.accept_ballot = ballot;
-		this.decided = true;
-		return true;
-	}
-
-	public synchronized boolean isDecided () {
-		return this.decided;
-	}
-
-	public synchronized int getCommandId () {
-		return this.command_id;
-	}
-
-	public synchronized int getAcceptBallot () {
-		return this.accept_ballot;
-	}
+	// ---- Execution ----
 
 	public synchronized boolean isExecuted () {
 		return this.executed;
@@ -241,6 +251,8 @@ public class PaxosInstance {
 	public synchronized void markExecuted () {
 		this.executed = true;
 	}
+
+	// ---- Nested types ----
 
 	private static final class LearnInfo {
 		// Mapping ballot numbers to values to votes for that value
