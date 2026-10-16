@@ -23,7 +23,7 @@ import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import io.grpc.Status;
 import io.grpc.stub.StreamObserver;
-import didatrade.server.request.CommandIdHelper;
+import didatrade.server.request.CommandIdKind;
 import didatrade.server.request.RequestHistory;
 
 class MultiPaxosPrepareTest {
@@ -127,7 +127,7 @@ class MultiPaxosPrepareTest {
 		assertNotNull (slot1);
 		assertNotNull (slot2);
 		assertEquals (301, slot0.getProposedRequestId ());
-		assertEquals (CommandIdHelper.NOOP_VALUE, slot1.getProposedRequestId ());
+		assertEquals (CommandIdKind.NOOP_ID, slot1.getProposedRequestId ());
 		assertEquals (401, slot2.getProposedRequestId ());
 	}
 

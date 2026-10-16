@@ -4,7 +4,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
-import didatrade.server.request.CommandIdHelper;
+import didatrade.server.request.CommandIdKind;
 
 public class PaxosInstance {
 	private int instance_nb;
@@ -63,7 +63,7 @@ public class PaxosInstance {
 	}
 
 	public synchronized boolean isNoop () {
-		return CommandIdHelper.isNoop (this.command_id);
+		return CommandIdKind.isNoop (this.command_id);
 	}
 
 	public synchronized int getInstanceNb () {
@@ -103,7 +103,7 @@ public class PaxosInstance {
 		if (highest_ballot < 0)
 			return false;
 		int chosen_value = this.learn_info.valueWithQuorum (highest_ballot, quorum);
-		if (chosen_value == CommandIdHelper.ABSENT_VALUE
+		if (chosen_value == CommandIdKind.ABSENT_ID
 				|| (this.decided && chosen_value != this.command_id))
 			return false;
 		boolean advanced = !this.decided || highest_ballot > this.accept_ballot;
@@ -151,7 +151,7 @@ public class PaxosInstance {
 
 	public synchronized int getUnexecutedRequestId () {
 		if (this.executed)
-			return CommandIdHelper.ABSENT_VALUE;
+			return CommandIdKind.ABSENT_ID;
 		if (this.decided)
 			return this.command_id;
 		return this.isAccepted () ? this.accepted_value : this.proposal.proposed_request_id;
@@ -176,7 +176,7 @@ public class PaxosInstance {
 	// change a decided slot, so it is re-proposed once per ballot and never retried; an
 	// undecided one is retried as soon as its backoff expires.
 	public synchronized boolean tryClaim (int ballot, long now_nanos) {
-		if (this.proposal.claimed || CommandIdHelper.isAbsent (this.getValueToPropose ()))
+		if (this.proposal.claimed || CommandIdKind.isAbsent (this.getValueToPropose ()))
 			return false;
 		if (this.decided && this.accept_ballot >= ballot)
 			return false;
@@ -197,7 +197,7 @@ public class PaxosInstance {
 	// -1 means no retry is scheduled; a positive result is a bounded wait.
 	public synchronized long retryDelayMillis (int ballot, long now_nanos) {
 		if (this.proposal.claimed || (this.decided && this.accept_ballot >= ballot)
-				|| CommandIdHelper.isAbsent (this.getValueToPropose ()))
+				|| CommandIdKind.isAbsent (this.getValueToPropose ()))
 			return -1;
 		if (this.proposal.retry_ballot != ballot
 				|| now_nanos >= this.proposal.retry_after_nanos)
@@ -283,11 +283,11 @@ public class PaxosInstance {
 		int valueWithQuorum (int ballot, int quorum) {
 			Map<Integer, LearnVotes> values = this.learn_votes.get (ballot);
 			if (values == null)
-				return CommandIdHelper.ABSENT_VALUE;
+				return CommandIdKind.ABSENT_ID;
 			for (Map.Entry<Integer, LearnVotes> entry : values.entrySet ())
 				if (entry.getValue ().accepted_by.size () >= quorum)
 					return entry.getKey ();
-			return CommandIdHelper.ABSENT_VALUE;
+			return CommandIdKind.ABSENT_ID;
 		}
 
 		// recordVote() keeps one vote per acceptor, so the vote sets are disjoint.
@@ -315,7 +315,7 @@ public class PaxosInstance {
 	}
 
 	private static final class LocalProposal {
-		private int proposed_request_id = CommandIdHelper.ABSENT_VALUE;
+		private int proposed_request_id = CommandIdKind.ABSENT_ID;
 		private boolean claimed;
 		private int retry_ballot = -1;
 		private long retry_after_nanos;

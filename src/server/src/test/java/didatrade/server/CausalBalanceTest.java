@@ -20,7 +20,7 @@ import org.junit.jupiter.api.Test;
 import didatrade.DidaTradeMain;
 import didatrade.core.TradeManager;
 import io.grpc.stub.StreamObserver;
-import didatrade.server.request.CommandIdHelper;
+import didatrade.server.request.CommandIdKind;
 import didatrade.server.request.DidaTradeAction;
 import didatrade.server.request.DidaTradeCommand;
 import didatrade.server.request.RequestHistory;
@@ -169,7 +169,7 @@ class CausalBalanceTest {
 		DidaTradeServerState state = newState ();
 		DidaTradeMainServiceImpl service = new DidaTradeMainServiceImpl (state);
 		DidaTradeMain.AddUserRequest request = DidaTradeMain.AddUserRequest.newBuilder ()
-				.setReqid (CommandIdHelper.NOOP_VALUE)
+				.setReqid (CommandIdKind.NOOP_ID)
 				.setUserid (7)
 				.setCash (100)
 				.setStock (10)

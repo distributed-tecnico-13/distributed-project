@@ -9,7 +9,7 @@ import java.util.Set;
 
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
-import didatrade.server.request.CommandIdHelper;
+import didatrade.server.request.CommandIdKind;
 import didatrade.server.request.RequestHistory;
 import didatrade.server.request.RequestRecord;
 
@@ -19,12 +19,12 @@ class RequestHistoryInvariantTest {
 	void sentinelIdsAreNeverQueuedAsClientRequests () {
 		RequestHistory history = new RequestHistory ();
 
-		assertFalse (history.addToPending (CommandIdHelper.ABSENT_VALUE,
-				new RequestRecord (CommandIdHelper.ABSENT_VALUE)));
-		assertFalse (history.addToPending (CommandIdHelper.NOOP_VALUE,
-				new RequestRecord (CommandIdHelper.NOOP_VALUE)));
-		assertNull (history.getIfPending (CommandIdHelper.ABSENT_VALUE));
-		assertNull (history.getIfPending (CommandIdHelper.NOOP_VALUE));
+		assertFalse (history.addToPending (CommandIdKind.ABSENT_ID,
+				new RequestRecord (CommandIdKind.ABSENT_ID)));
+		assertFalse (history.addToPending (CommandIdKind.NOOP_ID,
+				new RequestRecord (CommandIdKind.NOOP_ID)));
+		assertNull (history.getIfPending (CommandIdKind.ABSENT_ID));
+		assertNull (history.getIfPending (CommandIdKind.NOOP_ID));
 	}
 
 	@Test

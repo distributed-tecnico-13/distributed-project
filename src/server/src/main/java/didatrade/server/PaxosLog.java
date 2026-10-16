@@ -3,7 +3,7 @@ package didatrade.server;
 import java.util.HashSet;
 import java.util.Hashtable;
 import java.util.Set;
-import didatrade.server.request.CommandIdHelper;
+import didatrade.server.request.CommandIdKind;
 import didatrade.server.request.RequestHistory;
 import didatrade.server.request.RequestRecord;
 
@@ -50,13 +50,13 @@ public class PaxosLog {
 	public synchronized PaxosInstance assignPendingRequest (int position, RequestHistory history) {
 		PaxosInstance entry = this.log.get (position);
 		if (entry != null && (entry.isDecided ()
-				|| !CommandIdHelper.isAbsent (entry.getProposedRequestId ())))
+				|| !CommandIdKind.isAbsent (entry.getProposedRequestId ())))
 			return entry;
 
 		Set<Integer> assigned = new HashSet<> ();
 		for (PaxosInstance candidate : this.log.values ()) {
 			int owned_request = candidate.getUnexecutedRequestId ();
-			if (CommandIdHelper.isClientRequest (owned_request))
+			if (CommandIdKind.isClientRequest (owned_request))
 				assigned.add (owned_request);
 		}
 		// This is optional, the executor executes each command id only once.
@@ -91,7 +91,7 @@ public class PaxosLog {
 				return entry;
 			}
 			if (!entry.isDecided () && !entry.isAccepted ()
-					&& CommandIdHelper.isAbsent (entry.getProposedRequestId ())) {
+					&& CommandIdKind.isAbsent (entry.getProposedRequestId ())) {
 				entry.setProposedRequestId (request_id);
 				return entry;
 			}
@@ -117,9 +117,9 @@ public class PaxosLog {
 	public synchronized boolean fillNoop (int instance) {
 		PaxosInstance entry = this.log.get (instance);
 		if (entry != null && !entry.isDecided ()
-				&& CommandIdHelper.isClientRequest (entry.getProposedRequestId ()))
+				&& CommandIdKind.isClientRequest (entry.getProposedRequestId ()))
 			return false;
-		return this.adopt (instance, CommandIdHelper.NOOP_VALUE);
+		return this.adopt (instance, CommandIdKind.NOOP_ID);
 	}
 
 	public synchronized void replaceProposedRequestId (int position, int request_id) {

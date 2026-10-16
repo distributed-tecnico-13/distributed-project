@@ -12,7 +12,7 @@ import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Test;
 
 import didatrade.core.TradeManager;
-import didatrade.server.request.CommandIdHelper;
+import didatrade.server.request.CommandIdKind;
 import didatrade.server.request.DidaTradeAction;
 import didatrade.server.request.DidaTradeCommand;
 import didatrade.server.request.RequestHistory;
@@ -29,10 +29,10 @@ class NoopTest {
 		assertTrue (log.fillNoop (3));
 		assertTrue (log.fillNoop (1));
 
-		assertEquals (CommandIdHelper.NOOP_VALUE, log.getEntry (0).getProposedRequestId ());
-		assertEquals (CommandIdHelper.NOOP_VALUE, log.getEntry (1).getProposedRequestId ());
+		assertEquals (CommandIdKind.NOOP_ID, log.getEntry (0).getProposedRequestId ());
+		assertEquals (CommandIdKind.NOOP_ID, log.getEntry (1).getProposedRequestId ());
 		assertNull (log.getEntry (2));
-		assertEquals (CommandIdHelper.NOOP_VALUE, log.getEntry (3).getProposedRequestId ());
+		assertEquals (CommandIdKind.NOOP_ID, log.getEntry (3).getProposedRequestId ());
 	}
 
 	@Test
@@ -66,8 +66,8 @@ class NoopTest {
 		// Phase 1 for this ballot discovered noop as the highest-accepted value at slot 2 -
 		// that is a Paxos-mandated recovery, unlike fillNoop's speculative fill, so it must
 		// override the local candidate.
-		assertTrue (log.adopt (2, CommandIdHelper.NOOP_VALUE));
-		assertEquals (CommandIdHelper.NOOP_VALUE, log.getEntry (2).getProposedRequestId ());
+		assertTrue (log.adopt (2, CommandIdKind.NOOP_ID));
+		assertEquals (CommandIdKind.NOOP_ID, log.getEntry (2).getProposedRequestId ());
 	}
 
 	@Test
@@ -78,9 +78,9 @@ class NoopTest {
 		log.fillNoop (1);
 		history.addToPending (100, new RequestRecord (100));
 
-		assertEquals (CommandIdHelper.NOOP_VALUE,
+		assertEquals (CommandIdKind.NOOP_ID,
 				log.assignPendingRequest (0, history).getProposedRequestId ());
-		assertEquals (CommandIdHelper.NOOP_VALUE,
+		assertEquals (CommandIdKind.NOOP_ID,
 				log.assignPendingRequest (1, history).getProposedRequestId ());
 		assertEquals (100, log.assignPendingRequest (2, history).getProposedRequestId ());
 		history.addToPending (200, new RequestRecord (200));
@@ -93,7 +93,7 @@ class NoopTest {
 		assertFalse (empty.tryClaim (5, 0));
 
 		PaxosInstance noop = new PaxosInstance (1);
-		noop.setProposedRequestId (CommandIdHelper.NOOP_VALUE);
+		noop.setProposedRequestId (CommandIdKind.NOOP_ID);
 		assertTrue (noop.tryClaim (5, 1000));
 		long deadline = noop.releaseClaim (5, TimeUnit.MILLISECONDS.toNanos (200));
 
@@ -105,24 +105,24 @@ class NoopTest {
 	@Test
 	void historyIgnoresANoopId () {
 		RequestHistory history = new RequestHistory ();
-		history.addToPending (CommandIdHelper.NOOP_VALUE, new RequestRecord (CommandIdHelper.NOOP_VALUE));
+		history.addToPending (CommandIdKind.NOOP_ID, new RequestRecord (CommandIdKind.NOOP_ID));
 		history.addToPending (100, new RequestRecord (100));
 
-		assertNull (history.getIfPending (CommandIdHelper.NOOP_VALUE));
+		assertNull (history.getIfPending (CommandIdKind.NOOP_ID));
 		assertEquals (100, history.getIfPending (100).getId ());
 	}
 
 	@Test
 	void decidedNoopIsTheCommandId () {
 		PaxosInstance accepted = new PaxosInstance (0);
-		accepted.accept (5, CommandIdHelper.NOOP_VALUE);
-		assertEquals (CommandIdHelper.NOOP_VALUE, accepted.getAcceptedValue ());
+		accepted.accept (5, CommandIdKind.NOOP_ID);
+		assertEquals (CommandIdKind.NOOP_ID, accepted.getAcceptedValue ());
 		assertFalse (accepted.isNoop ());
-		accepted.decide (5, CommandIdHelper.NOOP_VALUE);
+		accepted.decide (5, CommandIdKind.NOOP_ID);
 		assertTrue (accepted.isNoop ());
 
 		PaxosInstance chosen = new PaxosInstance (1);
-		chosen.decide (5, CommandIdHelper.NOOP_VALUE);
+		chosen.decide (5, CommandIdKind.NOOP_ID);
 		assertTrue (chosen.isNoop ());
 		assertEquals (0, chosen.getAcceptedValue ());
 	}
@@ -131,10 +131,10 @@ class NoopTest {
 	void learnedNoopNeedsNoLocalAccept () {
 		PaxosInstance entry = new PaxosInstance (0);
 
-		assertFalse (entry.recordLearn (5, CommandIdHelper.NOOP_VALUE, 0, 2));
-		assertTrue (entry.recordLearn (5, CommandIdHelper.NOOP_VALUE, 1, 2));
+		assertFalse (entry.recordLearn (5, CommandIdKind.NOOP_ID, 0, 2));
+		assertTrue (entry.recordLearn (5, CommandIdKind.NOOP_ID, 1, 2));
 		assertTrue (entry.isNoop ());
-		assertEquals (CommandIdHelper.NOOP_VALUE, entry.getCommandId ());
+		assertEquals (CommandIdKind.NOOP_ID, entry.getCommandId ());
 		assertEquals (0, entry.getAcceptedValue ());
 	}
 
@@ -145,7 +145,7 @@ class NoopTest {
 		state.trade_manager = manager;
 		OrderedPaxosExecutor executor = new OrderedPaxosExecutor (state);
 		addRequest (state, 101);
-		state.paxos_log.testAndSetEntry (0).decide (5, CommandIdHelper.NOOP_VALUE);
+		state.paxos_log.testAndSetEntry (0).decide (5, CommandIdKind.NOOP_ID);
 		state.paxos_log.testAndSetEntry (1).decide (5, 101);
 
 		assertEquals (2, executor.drain ());
@@ -163,8 +163,8 @@ class NoopTest {
 		OrderedPaxosExecutor executor = new OrderedPaxosExecutor (state);
 		addRequest (state, 101);
 		PaxosInstance hole = state.paxos_log.testAndSetEntry (0);
-		hole.recordLearn (5, CommandIdHelper.NOOP_VALUE, 0, 2);
-		hole.recordLearn (5, CommandIdHelper.NOOP_VALUE, 1, 2);
+		hole.recordLearn (5, CommandIdKind.NOOP_ID, 0, 2);
+		hole.recordLearn (5, CommandIdKind.NOOP_ID, 1, 2);
 		state.paxos_log.testAndSetEntry (1).decide (5, 101);
 
 		assertEquals (2, executor.drain ());
@@ -176,7 +176,7 @@ class NoopTest {
 	void missingPayloadStillBlocksAfterANoop () {
 		DidaTradeServerState state = newState ();
 		OrderedPaxosExecutor executor = new OrderedPaxosExecutor (state);
-		state.paxos_log.testAndSetEntry (0).decide (5, CommandIdHelper.NOOP_VALUE);
+		state.paxos_log.testAndSetEntry (0).decide (5, CommandIdKind.NOOP_ID);
 		state.paxos_log.testAndSetEntry (1).decide (5, 101);
 
 		assertEquals (1, executor.drain ());

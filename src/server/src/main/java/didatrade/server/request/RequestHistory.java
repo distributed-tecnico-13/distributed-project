@@ -56,7 +56,7 @@ public class RequestHistory {
 	// internal sentinel; the caller must respond with a failure instead of blocking forever
 	// on a record no execution path can ever reach.
 	public synchronized boolean addToPending (int requestid, RequestRecord record) {
-		if (!CommandIdHelper.isClientRequest (requestid))
+		if (!CommandIdKind.isClientRequest (requestid))
 			return false;
 		this.pending.put (requestid, record);
 		return true;

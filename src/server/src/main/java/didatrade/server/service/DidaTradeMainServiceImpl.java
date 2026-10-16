@@ -7,7 +7,7 @@ import didatrade.server.DidaTradeServerState.BalanceResult;
 import io.grpc.stub.StreamObserver;
 import didatrade.server.DidaTradeServerState;
 import didatrade.server.FastPaxosAcceptor;
-import didatrade.server.request.CommandIdHelper;
+import didatrade.server.request.CommandIdKind;
 import didatrade.server.request.DidaTradeAction;
 import didatrade.server.request.DidaTradeCommand;
 import didatrade.server.request.RequestRecord;
