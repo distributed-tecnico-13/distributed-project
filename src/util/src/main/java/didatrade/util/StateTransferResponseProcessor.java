@@ -7,6 +7,10 @@ import java.util.Set;
 
 import didatrade.DidaTradePaxos;
 
+/**
+ * Done once a classic quorum of acceptors installed the state, or any replica reports a newer
+ * ballot.
+ */
 public class StateTransferResponseProcessor extends GenericResponseProcessor<DidaTradePaxos.InstallStateReply> {
 	private final int ballot;
 	private final int quorum;

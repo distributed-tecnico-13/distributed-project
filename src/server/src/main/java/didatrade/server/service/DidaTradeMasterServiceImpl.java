@@ -6,6 +6,7 @@ import didatrade.DidaTradeMasterServiceGrpc;
 import io.grpc.stub.StreamObserver;
 import didatrade.server.DidaTradeServerState;
 
+/** Console RPCs: start a ballot, activate it, set debug modes. */
 public class DidaTradeMasterServiceImpl extends DidaTradeMasterServiceGrpc.DidaTradeMasterServiceImplBase {
 	DidaTradeServerState server_state;
 
@@ -13,6 +14,8 @@ public class DidaTradeMasterServiceImpl extends DidaTradeMasterServiceGrpc.DidaT
 		this.server_state = state;
 	}
 
+	// Starts a ballot at its leader and blocks until the ballot is recovered, or a newer ballot
+	// supersedes it.
 	@Override
 	public void newballot (DidaTradeMaster.NewBallotRequest request, StreamObserver<DidaTradeMaster.NewBallotReply> responseObserver) {
 		System.out.println (request);
@@ -58,6 +61,7 @@ public class DidaTradeMasterServiceImpl extends DidaTradeMasterServiceGrpc.DidaT
 		responseObserver.onCompleted ();
 	}
 
+	// Acks if this replica leads the ballot and the ballot is completed.
 	@Override
 	public void activate (DidaTradeMaster.ActivateRequest request, StreamObserver<DidaTradeMaster.ActivateReply> responseObserver) {
 		System.out.println (request);

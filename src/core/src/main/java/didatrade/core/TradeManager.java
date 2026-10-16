@@ -29,6 +29,7 @@ public class TradeManager {
 		return true;
 	}
 
+	// Matches the oldest sell order with the oldest buy order until one side is empty.
 	private void match_all () {
 		while ((this.sales_orders.size () > 0) && (this.buy_orders.size () > 0)) {
 			SaleOrder sale_order = this.sales_orders.getFirst ();
@@ -43,6 +44,8 @@ public class TradeManager {
 		}
 	}
 
+	// Sells fraction percent of the user's stock. False for an unknown user or if that rounds down
+	// to zero items.
 	public synchronized boolean sell (int user_id, int fraction) {
 		User user = this.users.get (user_id);
 		int n_items;
@@ -64,6 +67,7 @@ public class TradeManager {
 			return false;
 	}
 
+	// Spends fraction percent of the user's cash on items (1 cash per item). False like sell.
 	public synchronized boolean acquire (int user_id, int fraction) {
 		User user = this.users.get (user_id);
 		int n_items;
@@ -85,6 +89,7 @@ public class TradeManager {
 			return false;
 	}
 
+	// Cash balance, or -1 for an unknown user.
 	public synchronized int balance (int user_id) {
 		User user = this.users.get (user_id);
 

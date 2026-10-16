@@ -13,6 +13,10 @@ import java.util.Set;
 import didatrade.DidaTradePaxos;
 import didatrade.configs.ConfigurationScheduler;
 
+/**
+ * Collects Phase 1 promises. Done on any rejection, or once every required configuration has a
+ * recovery quorum and every reported slot has a safe value.
+ */
 public class PhaseOneResponseProcessor
 		extends
 			GenericResponseProcessor<DidaTradePaxos.PhaseOneReply> {
@@ -33,6 +37,7 @@ public class PhaseOneResponseProcessor
 		this (s, h, h);
 	}
 
+	// Ballots low..h with different acceptor groups must each deliver a recovery quorum.
 	public PhaseOneResponseProcessor(ConfigurationScheduler s, int h, int low) {
 		this.scheduler = s;
 		this.required_ballots = new ArrayList<> ();
@@ -83,6 +88,8 @@ public class PhaseOneResponseProcessor
 		return response.getBallot ();
 	}
 
+	// Returns true once the outcome is final: a rejection, or recovery quorums plus a safe value
+	// for every slot.
 	@Override
 	public synchronized boolean onNext (
 			ArrayList<DidaTradePaxos.PhaseOneReply> all_responses,
@@ -146,6 +153,9 @@ public class PhaseOneResponseProcessor
 		return true;
 	}
 
+	// Safe value for one slot, judged on the highest ballot reported. Classic ballot: the single
+	// reported value. Fast ballot: the only value that could have reached the Fast quorum, else
+	// any. null means ambiguous: wait for more replies.
 	private InstanceResponse resolveInstance (AcceptedResponseObserver observations) {
 		if (!this.scheduler.fastpaxos (observations.ballot)) {
 			if (observations.value_count.keySet ().size () != 1)
@@ -188,6 +198,7 @@ public class PhaseOneResponseProcessor
 			this.value_count.put (value, 1);
 		}
 
+		// Only reports from the highest ballot seen so far count.
 		private void observe (int ballot, int value) {
 			if (ballot > this.ballot) {
 				this.ballot = ballot;

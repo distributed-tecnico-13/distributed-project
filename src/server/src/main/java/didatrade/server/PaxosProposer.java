@@ -33,6 +33,8 @@ final class PaxosProposer {
 		this.server_state = state;
 	}
 
+	// Runs Phase 1 once per ballot (leader only) and adopts the recovered values into the log.
+	// Returns true once the ballot is prepared.
 	boolean prepare (int ballot) {
 		if (!this.server_state.canProposeFor (ballot))
 			return false;
@@ -64,6 +66,8 @@ final class PaxosProposer {
 		return true;
 	}
 
+	// Phase 1 only reports accepted slots; every unseen slot below the highest one gets a noop, so
+	// the log has no holes.
 	private void fillNoops (PhaseOneResult phase_one) {
 		int[] instances = phase_one.instances;
 		if (instances.length == 0)
@@ -76,12 +80,14 @@ final class PaxosProposer {
 		}
 	}
 
+	// Slots below this limit were recovered by Phase 1 and are re-proposed before any new request.
 	int recoveryLimit (int ballot) {
 		if (this.prepared_ballot != ballot || this.recovery_highest_instance < 0)
 			return 0;
 		return this.recovery_highest_instance + 1;
 	}
 
+	// True once every recovered slot is decided in this ballot; only then may a Fast round start.
 	boolean fastRecoveryComplete (int ballot) {
 		if (this.prepared_ballot != ballot)
 			return false;
@@ -99,6 +105,8 @@ final class PaxosProposer {
 				&& this.server_state.canCoordinateFastRound (ballot);
 	}
 
+	// Asks the acceptors to open the Fast round after the recovered slots; true once a Fast quorum
+	// agreed.
 	boolean openFastRound (int ballot) {
 		if (!this.server_state.canCoordinateFastRound (ballot)
 				|| !this.fastRecoveryComplete (ballot))
@@ -141,6 +149,8 @@ final class PaxosProposer {
 		return this.server_state.getCompletedBallot () == ballot;
 	}
 
+	// Dynamic membership: pushes the recovered log prefix and its commands to all learners. The
+	// ballot completes once a classic quorum of acceptors acknowledged.
 	boolean finishTransfer (int ballot) {
 		if (!this.server_state.canProposeFor (ballot) || !this.fastRecoveryComplete (ballot))
 			return false;
@@ -173,12 +183,13 @@ final class PaxosProposer {
 		return true;
 	}
 
+	// Phase 2 for one slot.
 	void propose (PaxosInstance entry, int ballot) {
 		try {
 			if (!this.server_state.canProposeFor (ballot))
 				return;
 			int instance = entry.getInstanceNb ();
-			int phase_two_value = entry.phaseTwoValueFor (ballot, entry.getValueToPropose ());
+			int phase_two_value = entry.pinPhaseTwoValue (ballot, entry.getValueToPropose ());
 			this.server_state.paxos_log.replaceProposedRequestId (instance, phase_two_value);
 			List<Integer> acceptors = this.server_state.scheduler.acceptors (ballot);
 			if (this.runPhaseTwo (instance, ballot, phase_two_value, acceptors,
@@ -195,9 +206,10 @@ final class PaxosProposer {
 	// higher-ballot completion recorded; otherwise newballot may wait forever.
 	void finishSuccessfulPhaseTwo (PaxosInstance entry, int ballot, int value) {
 		entry.decide (ballot, value);
-		this.server_state.updateCompletedBallot (ballot);
+		this.server_state.updateCompletedBallot ();
 	}
 
+	// Sends Phase 1 and waits for the processor. A rejection raises the current ballot.
 	private PhaseOneResult runPhaseOne (
 			List<Integer> acceptors, int n_acceptors, int ballot, int low_ballot) {
 		DidaTradePaxos.PhaseOneRequest request = DidaTradePaxos.PhaseOneRequest
@@ -224,6 +236,12 @@ final class PaxosProposer {
 		return result;
 	}
 
+	/**
+	 * Runs Phase 2 for a given instance, ballot, and value.
+	 *
+	 * @return {@code true} if the attempt was ABORTED (leadership was lost or no classic quorum accepted);
+	 *         a higher ballot seen in a rejection will raise the current ballot.
+	 */
 	private boolean runPhaseTwo (
 			int instance, int ballot, int value,
 			List<Integer> acceptors, int n_acceptors, int quorum) {
@@ -253,6 +271,7 @@ final class PaxosProposer {
 		return true;
 	}
 
+	/** What Phase 1 recovered: the command id per slot, and whether the attempt was aborted. */
 	static final class PhaseOneResult {
 		final boolean aborted;
 		final int maxballot;

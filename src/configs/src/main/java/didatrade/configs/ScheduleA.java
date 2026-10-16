@@ -2,6 +2,7 @@ package didatrade.configs;
 
 import java.util.*;
 
+/** 3 replicas, classic Multi-Paxos only. The leader rotates with the ballot (ballot % 3). */
 public class ScheduleA extends Schedule {
 	private List<Integer> all_participants = Arrays.asList (0, 1, 2);
 	private List<Integer> all_learners = Arrays.asList (0, 1, 2);

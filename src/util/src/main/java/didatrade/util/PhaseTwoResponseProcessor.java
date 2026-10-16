@@ -7,6 +7,10 @@ import java.util.Set;
 
 import didatrade.DidaTradePaxos;
 
+/**
+ * Done once a classic quorum accepted, or as soon as one acceptor rejects (its reply carries the
+ * higher ballot).
+ */
 public class PhaseTwoResponseProcessor extends GenericResponseProcessor<DidaTradePaxos.PhaseTwoReply> {
 	private boolean accepted;
 	private int maxballot;

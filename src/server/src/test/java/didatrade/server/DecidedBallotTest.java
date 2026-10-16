@@ -24,7 +24,7 @@ class DecidedBallotTest {
 		state.paxos_log.testAndSetEntry (0).decide (1, 101);
 		state.paxos_log.testAndSetEntry (1).decide (3, 201);
 
-		state.updateCompletedBallot (0);
+		state.updateCompletedBallot ();
 
 		assertEquals (3, state.getCompletedBallot ());
 	}

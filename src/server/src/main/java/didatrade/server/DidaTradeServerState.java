@@ -11,6 +11,14 @@ import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 import didatrade.server.request.RequestHistory;
 
+/**
+ * Per-replica state shared by the gRPC handlers and the MainLoop thread. Ballot, Fast round and
+ * execution state is guarded by this object's monitor.
+ *
+ * Convention: state transitions (promise, accept, Fast vote) are decided here under the monitor
+ * and never send RPCs. The caller notifies learners or wakes the MainLoop afterwards, so no
+ * network call ever holds the lock.
+ */
 public final class DidaTradeServerState {
 	public static final int DEFAULT_POPULATION = 10;
 	int max_participants;
@@ -28,11 +36,12 @@ public final class DidaTradeServerState {
 	DidaTradePaxosServiceGrpc.DidaTradePaxosServiceStub[] async_stubs;
 
 	private int current_ballot;
-	private int completed_ballot = -1;
+	private int last_completed_ballot = -1;
 	private DebugState debug_state;
 	private boolean fastpaxos_on;
+	// First slot Fast proposals may use; lower slots belong to classic recovery.
 	private int fast_first_instance;
-	private int ran_phase_one_for_ballot = -1;
+	private int last_phase_one_completed_ballot = -1;
 	private int last_executed_instance = -1;
 	private boolean membership_transferred;
 
@@ -47,11 +56,11 @@ public final class DidaTradeServerState {
 		this.debug_state = new DebugState ();
 		this.fastpaxos_on = false;
 		this.current_ballot = 0;
-		this.completed_ballot = -1;
+		this.last_completed_ballot = -1;
 		this.req_history = new RequestHistory ();
 		this.paxos_log = new PaxosLog ();
 		this.main_loop = new MainLoop (this);
-		this.ran_phase_one_for_ballot = -1;
+		this.last_phase_one_completed_ballot = -1;
 		this.last_executed_instance = -1;
 
 		// populate manager
@@ -122,10 +131,12 @@ public final class DidaTradeServerState {
 			this.fastpaxos_on = false;
 	}
 
+	// True if ballot is the current ballot and this replica is its leader.
 	public synchronized boolean canProposeFor (int ballot) {
 		return ballot == this.current_ballot && this.scheduler.leader (ballot) == this.my_id;
 	}
 
+	// Dynamic membership: set once the recovered prefix was installed here.
 	public synchronized boolean membershipTransferred () {
 		return this.membership_transferred;
 	}
@@ -137,6 +148,8 @@ public final class DidaTradeServerState {
 	public record BalanceResult(int balance, int lastExecutedInstance) {
 	}
 
+	// Waits until minInstance (the newest instance the client has seen) is executed, so a read is
+	// ordered after the client's earlier commands.
 	public BalanceResult getBalance (int minInstance, int userid) {
 		this.waitForInstanceExecution (minInstance);
 		synchronized (this) {
@@ -183,6 +196,7 @@ public final class DidaTradeServerState {
 		this.last_executed_instance = -1;
 	}
 
+	// Phase 1 promise
 	public synchronized PhaseOneState processPhaseOne (int ballot) {
 		boolean accepted = ballot >= this.current_ballot;
 		if (accepted)
@@ -190,7 +204,10 @@ public final class DidaTradeServerState {
 		return new PhaseOneState (accepted, this.current_ballot);
 	}
 
-	// Lock order: server state, then one PaxosInstance. No RPC runs under either lock.
+	// Phase 2: accepts (ballot, value) in one slot iff this replica is an acceptor of the ballot
+	// and has not promised a higher one.
+	// Lock order: server state, then one PaxosInstance. No RPC runs under either lock; the
+	// caller notifies the learners after this returns.
 	public synchronized PhaseTwoState processPhaseTwo (
 			PaxosInstance entry, int ballot, int value) {
 		boolean accepted = false;
@@ -203,16 +220,19 @@ public final class DidaTradeServerState {
 		return new PhaseTwoState (accepted, this.current_ballot);
 	}
 
+	// Acceptor view: this replica has entered the Fast round of the ballot.
 	public synchronized boolean isFastRoundOpen (int ballot) {
 		return this.fastpaxos_on && ballot == this.current_ballot
 				&& TestHelper.hasScheduler (this) && this.scheduler.fastpaxos (ballot);
 	}
 
+	// Leader view: this replica leads a Fast ballot and has finished Phase 1 for it.
 	public synchronized boolean canCoordinateFastRound (int ballot) {
 		return this.canProposeFor (ballot) && this.scheduler.fastpaxos (ballot)
 				&& this.hasRunPhaseOne (ballot);
 	}
 
+	// Acceptor check for an openfast request: a Fast ballot that is not older than the current one.
 	public synchronized boolean canOpenFastRound (int ballot) {
 		return TestHelper.hasScheduler (this) && ballot >= this.current_ballot
 				&& this.scheduler.fastpaxos (ballot)
@@ -223,6 +243,7 @@ public final class DidaTradeServerState {
 		return this.openFastRound (ballot, 0);
 	}
 
+	// Enters Fast mode for the ballot (handles the openfast RPC).
 	public synchronized boolean openFastRound (int ballot, int first_fast_instance) {
 		if (!this.canOpenFastRound (ballot) || first_fast_instance < 0)
 			return false;
@@ -233,7 +254,10 @@ public final class DidaTradeServerState {
 		return true;
 	}
 
-	public synchronized FastVoteState processFastVote (int request_id) {
+	// Fast acceptor: votes for a client request directly, in the first free slot at or after
+	// fast_first_instance, without waiting for a leader proposal. Only decides and records the
+	// vote; FastPaxosAcceptor.tryAcceptRequest notifies the learners afterwards, outside the lock.
+	public synchronized FastVoteState fastVote (int request_id) {
 		int ballot = this.current_ballot;
 		if (!this.isFastRoundOpen (ballot)
 				|| !this.scheduler.isacceptor (this.my_id, ballot))
@@ -254,7 +278,7 @@ public final class DidaTradeServerState {
 	}
 
 	public synchronized int getCompletedBallot () {
-		return this.completed_ballot;
+		return this.last_completed_ballot;
 	}
 
 	public synchronized int findMaxDecidedBallot () {
@@ -266,39 +290,42 @@ public final class DidaTradeServerState {
 		return ballot;
 	}
 
-	public synchronized void updateCompletedBallot (int ballot) {
+	// Static schedules: a ballot is completed once slots are decided in it, so each replica
+	// derives that from its own log (after a Learn decision or a successful Phase 2).
+	public synchronized void updateCompletedBallot () {
 		if (TestHelper.hasScheduler (this) && this.scheduler.dynamicMembership ())
 			return; // Dynamic completion is acknowledged only after state transfer.
 
-		ballot = this.findMaxDecidedBallot ();
-		if (ballot > this.completed_ballot)
-			this.completed_ballot = ballot;
-		this.notifyAll ();
+		this.setCompletedBallot (this.findMaxDecidedBallot ());
 	}
 
+	// Completion established from outside the log: the console's last known completed ballot
+	// (static schedules), or a finished state transfer (dynamic membership, where decided
+	// slots alone are not enough). Only raises the value; wakes waitForCompletedBallot.
 	public synchronized void setCompletedBallot (int ballot) {
-		if (ballot > this.completed_ballot)
-			this.completed_ballot = ballot;
+		if (ballot > this.last_completed_ballot)
+			this.last_completed_ballot = ballot;
 		this.notifyAll ();
 	}
 
+	// Blocks a newballot request until its ballot is completed or superseded.
 	public synchronized int waitForCompletedBallot (int ballot) {
 		// Stop waiting if a newer ballot supersedes this ballot before completion.
-		while (this.completed_ballot < ballot && this.current_ballot <= ballot) {
+		while (this.last_completed_ballot < ballot && this.current_ballot <= ballot) {
 			try {
 				wait ();
 			} catch (InterruptedException e) {
 			}
 		}
-		return this.completed_ballot;
+		return this.last_completed_ballot;
 	}
 
 	synchronized boolean hasRunPhaseOne (int ballot) {
-		return this.ran_phase_one_for_ballot == ballot;
+		return this.last_phase_one_completed_ballot == ballot;
 	}
 
 	synchronized void setRanPhaseOne (int ballot) {
-		this.ran_phase_one_for_ballot = ballot;
+		this.last_phase_one_completed_ballot = ballot;
 	}
 
 	public synchronized boolean getFastPaxosMode () {

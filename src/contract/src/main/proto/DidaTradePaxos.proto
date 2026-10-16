@@ -75,10 +75,15 @@ message LearnReply {
 }
 
 service DidaTradePaxosService {
+  // Dynamic membership: the leader pushes the recovered prefix to the learners.
   rpc installstate (InstallStateRequest) returns (InstallStateReply);
+  // Acceptor promise for a ballot; the reply lists every accepted slot.
   rpc phaseone (PhaseOneRequest) returns (PhaseOneReply);
+  // Accept a value for one slot.
   rpc phasetwo (PhaseTwoRequest) returns (PhaseTwoReply);
+  // Enter a Fast round; slots below firstfastinstance stay with classic recovery.
   rpc openfast (OpenFastRequest) returns (OpenFastReply);
+  // Acceptors tell the learners which value they accepted.
   rpc learn    (LearnRequest)    returns (LearnReply);
 }
 

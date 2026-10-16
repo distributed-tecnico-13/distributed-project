@@ -2,12 +2,14 @@ package didatrade.configs;
 
 import java.util.*;
 
+/** Cluster configuration: who leads, accepts and learns in each ballot, and the quorum sizes. */
 public abstract class Schedule {
 
 	abstract List<Integer> learners (int ballot);
 
 	abstract List<Integer> acceptors (int ballot);
 
+	// Acceptors across the ballots low..high; the union if the group changes in between.
 	abstract List<Integer> acceptorsinrange (int low_ballot, int high_ballot);
 
 	abstract boolean isacceptor (int node, int ballot);

@@ -7,6 +7,7 @@ import didatrade.server.request.CommandIdKind;
 import didatrade.server.request.RequestHistory;
 import didatrade.server.request.RequestRecord;
 
+/** The replica's log of Paxos instances, created on demand by slot number. */
 public class PaxosLog {
 	private Hashtable<Integer, PaxosInstance> log;
 
@@ -26,6 +27,7 @@ public class PaxosLog {
 		return this.log.values ().toArray (PaxosInstance[]::new);
 	}
 
+	// Returns the entry of the slot, creating it if it does not exist yet.
 	public synchronized PaxosInstance testAndSetEntry (int position) {
 		PaxosInstance entry = this.log.get (position);
 
@@ -36,7 +38,8 @@ public class PaxosLog {
 		return entry;
 	}
 
-	// Classic/Multi-Paxos allocation remains centralized in MainLoop.
+	// Classic path: gives the slot the first pending client request that no other slot owns yet.
+	// Fast ballots allocate per acceptor in assignFastRequest instead.
 	public synchronized PaxosInstance assignPendingRequest (int position, RequestHistory history) {
 		PaxosInstance entry = this.log.get (position);
 		if (entry != null && (entry.isDecided ()
@@ -65,6 +68,8 @@ public class PaxosLog {
 		return this.assignFastRequest (request_id, 0);
 	}
 
+	// Fast path: the request's own slot if it already has one, otherwise the first free slot at or
+	// after first_fast_instance.
 	public synchronized PaxosInstance assignFastRequest (int request_id, int first_fast_instance) {
 		for (PaxosInstance candidate : this.log.values ()) {
 			if (candidate.getInstanceNb () >= first_fast_instance
@@ -89,6 +94,8 @@ public class PaxosLog {
 		}
 	}
 
+	// Phase 1 recovery: makes the slot propose the recovered value. False if the slot is already
+	// decided on another value.
 	public synchronized boolean adopt (int instance, int request_id) {
 		PaxosInstance entry = this.log.get (instance);
 		if (entry != null) {
@@ -118,6 +125,7 @@ public class PaxosLog {
 			entry.setProposedRequestId (request_id);
 	}
 
+	// Slots this acceptor accepted a value in; the content of a Phase 1 reply.
 	public synchronized PaxosInstance[] getAcceptedEntries () {
 		return this.log.entrySet ().stream ()
 				.filter (e -> e.getValue ().isAccepted ())

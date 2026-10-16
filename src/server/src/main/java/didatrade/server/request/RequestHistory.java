@@ -7,6 +7,10 @@ import java.util.Hashtable;
 import java.util.List;
 import java.util.Set;
 
+/**
+ * Client requests by id: pending until executed, then processed. Executed ones are kept so
+ * duplicates are recognised.
+ */
 public class RequestHistory {
 	private Hashtable<Integer, RequestRecord> pending;
 	private Hashtable<Integer, RequestRecord> processed;

@@ -1,5 +1,8 @@
 package didatrade.server.request;
 
+/**
+ * A client request and its result.
+ */
 public class RequestRecord {
 	private int requestid;
 	private DidaTradeCommand request;

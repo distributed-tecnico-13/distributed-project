@@ -2,6 +2,10 @@ package didatrade.configs;
 
 import java.util.*;
 
+/**
+ * Dynamic membership: acceptors 0-4 before MEMBERSHIP_CHANGE_BALLOT and 2-6 from it on. Fast Paxos
+ * only in ballot 0 and the membership change ballot.
+ */
 public class ScheduleC extends Schedule {
 	public static final int MEMBERSHIP_CHANGE_BALLOT = 2;
 
@@ -49,6 +53,7 @@ public class ScheduleC extends Schedule {
 			return this.acceptors_end.contains (node);
 	}
 
+	// Ballots 0-1 are led by replicas 0-1, ballots 2-4 by replicas 3-5, later ballots by replica 5.
 	public Integer leader (int ballot) {
 		if (ballot < MEMBERSHIP_CHANGE_BALLOT)
 			return ballot;

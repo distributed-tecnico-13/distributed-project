@@ -108,7 +108,7 @@ class StateTransferTest {
 				.setBallot (2).build ();
 		assertTrue (StateTransfer.install (s, empty));
 		assertTrue (s.openFastRound (2));
-		DidaTradeServerState.FastVoteState newVote = s.processFastVote (301);
+		DidaTradeServerState.FastVoteState newVote = s.fastVote (301);
 		assertTrue (newVote.accepted);
 		assertEquals (0, newVote.instance);
 		assertTrue (StateTransfer.install (s, empty), "a delayed retry may arrive after Fast opens");

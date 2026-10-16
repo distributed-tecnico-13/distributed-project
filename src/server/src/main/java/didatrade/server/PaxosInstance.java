@@ -6,6 +6,10 @@ import java.util.Map;
 import java.util.Set;
 import didatrade.server.request.CommandIdKind;
 
+/**
+ * One slot of the Paxos log: acceptor state, learner votes, the decision, and this server's
+ * proposal bookkeeping.
+ */
 public class PaxosInstance {
 	private int instance_nb;
 	private int command_id;
@@ -35,6 +39,7 @@ public class PaxosInstance {
 	}
 
 	public synchronized boolean accept (int ballot, int value) {
+		// Defensive rejections, should never actually happen. TODO: Maybe remove them.
 		if (this.decided && value != this.command_id)
 			return false;
 		if (ballot == this.write_ballot && value != this.accepted_value)
@@ -64,10 +69,13 @@ public class PaxosInstance {
 		return this.write_ballot;
 	}
 
+	// Value and ballot read together, so Phase 1 never pairs a value with the wrong ballot.
 	public synchronized AcceptedSnapshot getAcceptedSnapshot () {
 		return new AcceptedSnapshot (this.accepted_value, this.write_ballot);
 	}
 
+	// Learner: counts one acceptor's vote. True if this vote newly decided the slot or raised its
+	// decision ballot.
 	public synchronized boolean recordLearn (
 			int ballot, int value, int server_id, int quorum) {
 		if (!this.recordVote (ballot, value, server_id, quorum))
@@ -84,6 +92,7 @@ public class PaxosInstance {
 		return this.learn_info.acceptCount (ballot, value) >= quorum;
 	}
 
+	// Decides on the value that has a quorum in the highest ballot
 	private boolean updateInstanceState (int quorum) {
 		int highest_ballot = this.learn_info.findHighestBallotWithQuorum (quorum);
 		if (highest_ballot < 0)
@@ -131,10 +140,15 @@ public class PaxosInstance {
 		return this.proposal.proposed_request_id;
 	}
 
+	// A decided value always wins. Otherwise the request assigned to this slot: by the leader
+	// (from a client, or a value recovered in Phase 1), by a Fast vote,
+	// or the value of an accepted Phase 2. //TODO: Make clear where and when which is stored
 	public synchronized int getValueToPropose () {
 		return this.decided ? this.command_id : this.proposal.proposed_request_id;
 	}
 
+	// The request this slot currently owns (decided, else accepted, else proposed), or ABSENT once
+	// executed. Prevents one request from being assigned to two slots.
 	public synchronized int getUnexecutedRequestId () {
 		if (this.executed)
 			return CommandIdKind.ABSENT_ID;
@@ -154,13 +168,12 @@ public class PaxosInstance {
 			this.proposal.proposed_request_id = value;
 	}
 
-	public synchronized int phaseTwoValueFor (int ballot, int selected_value) {
-		return this.proposal.phaseTwoValueFor (ballot, selected_value);
+	// Pins the value Phase 2 sends for this slot in this ballot
+	public synchronized int pinPhaseTwoValue (int ballot, int selected_value) {
+		return this.proposal.pinPhaseTwoValue (ballot, selected_value);
 	}
 
-	// A claim belongs to one local worker; it is unrelated to Paxos acceptance. Nothing can
-	// change a decided slot, so it is re-proposed once per ballot and never retried; an
-	// undecided one is retried as soon as its backoff expires.
+	// A claim belongs to one local worker; it is unrelated to Paxos acceptance.
 	public synchronized boolean tryClaim (int ballot, long now_nanos) {
 		if (this.proposal.claimed || CommandIdKind.isAbsent (this.getValueToPropose ()))
 			return false;
@@ -173,6 +186,8 @@ public class PaxosInstance {
 		return true;
 	}
 
+	// Ends the claim and delays the next attempt in this ballot by the backoff. E.g. after a
+	// Phase 2 that found no quorum
 	public synchronized long releaseClaim (int ballot, long retry_delay_nanos) {
 		this.proposal.claimed = false;
 		this.proposal.retry_ballot = ballot;
@@ -287,6 +302,8 @@ public class PaxosInstance {
 			return responders;
 		}
 
+		// True if the quorum stays out of reach even when every acceptor that has not reported yet
+		// votes for the leading value.
 		boolean cannotReachQuorum (int ballot, int quorum, int n_acceptors) {
 			Map<Integer, LearnVotes> values = this.learn_votes.get (ballot);
 			if (values == null || values.isEmpty ())
@@ -309,7 +326,7 @@ public class PaxosInstance {
 		private int phase_two_value;
 
 		// A ballot must never send two different values, including across retries.
-		private int phaseTwoValueFor (int ballot, int selected_value) {
+		private int pinPhaseTwoValue (int ballot, int selected_value) {
 			if (ballot < this.phase_two_ballot)
 				throw new IllegalStateException ("Cannot restart an older Phase 2 ballot");
 			if (ballot > this.phase_two_ballot) {

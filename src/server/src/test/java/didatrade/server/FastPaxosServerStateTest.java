@@ -23,7 +23,7 @@ class FastPaxosServerStateTest {
 	void fastVoteIsRejectedUntilRoundIsOpened () {
 		DidaTradeServerState state = state ('B', 0);
 
-		DidaTradeServerState.FastVoteState vote = state.processFastVote (100);
+		DidaTradeServerState.FastVoteState vote = state.fastVote (100);
 
 		assertFalse (vote.accepted);
 		assertEquals (0, vote.ballot);
@@ -36,7 +36,7 @@ class FastPaxosServerStateTest {
 		DidaTradeServerState state = state ('B', 0);
 		assertTrue (state.openFastRound (0));
 
-		DidaTradeServerState.FastVoteState vote = state.processFastVote (100);
+		DidaTradeServerState.FastVoteState vote = state.fastVote (100);
 
 		assertTrue (vote.accepted);
 		assertEquals (0, vote.ballot);
@@ -50,8 +50,8 @@ class FastPaxosServerStateTest {
 		DidaTradeServerState state = state ('B', 0);
 		assertTrue (state.openFastRound (0));
 
-		DidaTradeServerState.FastVoteState first = state.processFastVote (100);
-		DidaTradeServerState.FastVoteState duplicate = state.processFastVote (100);
+		DidaTradeServerState.FastVoteState first = state.fastVote (100);
+		DidaTradeServerState.FastVoteState duplicate = state.fastVote (100);
 
 		assertTrue (first.accepted);
 		assertTrue (duplicate.accepted);
@@ -64,9 +64,9 @@ class FastPaxosServerStateTest {
 		DidaTradeServerState state = state ('B', 0);
 		assertTrue (state.openFastRound (0));
 
-		assertEquals (0, state.processFastVote (100).instance);
-		assertEquals (1, state.processFastVote (101).instance);
-		assertEquals (2, state.processFastVote (102).instance);
+		assertEquals (0, state.fastVote (100).instance);
+		assertEquals (1, state.fastVote (101).instance);
+		assertEquals (2, state.fastVote (102).instance);
 	}
 
 	@Test
@@ -77,7 +77,7 @@ class FastPaxosServerStateTest {
 		assertTrue (state.advanceFromCollidedFastBallot (0));
 
 		assertEquals (1, state.getCurrentBallot ());
-		assertFalse (state.processFastVote (100).accepted);
+		assertFalse (state.fastVote (100).accepted);
 		assertFalse (state.advanceFromCollidedFastBallot (0));
 		assertEquals (1, state.getCurrentBallot ());
 	}
@@ -92,7 +92,7 @@ class FastPaxosServerStateTest {
 
 		assertFalse (state.isFastRoundOpen (0));
 		assertFalse (state.isFastRoundOpen (1));
-		assertFalse (state.processFastVote (101).accepted);
+		assertFalse (state.fastVote (101).accepted);
 	}
 
 	@Test
@@ -150,7 +150,7 @@ class FastPaxosServerStateTest {
 	void fastRoundClosesOnExplicitHigherBallotOnly () {
 		DidaTradeServerState state = state ('B', 0);
 		assertTrue (state.openFastRound (0));
-		state.processFastVote (100);
+		state.fastVote (100);
 		assertEquals (0, state.getCurrentBallot ());
 
 		state.setCurrentBallot (1);
@@ -167,7 +167,7 @@ class FastPaxosServerStateTest {
 			List<Future<DidaTradeServerState.FastVoteState>> futures = new ArrayList<> ();
 			for (int i = 0; i < 24; i++) {
 				int request = 1000 + i;
-				futures.add (workers.submit ( () -> state.processFastVote (request)));
+				futures.add (workers.submit ( () -> state.fastVote (request)));
 			}
 
 			Set<Integer> instances = new HashSet<> ();
@@ -190,7 +190,7 @@ class FastPaxosServerStateTest {
 		try {
 			List<Future<DidaTradeServerState.FastVoteState>> futures = new ArrayList<> ();
 			for (int i = 0; i < 20; i++)
-				futures.add (workers.submit ( () -> state.processFastVote (777)));
+				futures.add (workers.submit ( () -> state.fastVote (777)));
 
 			for (Future<DidaTradeServerState.FastVoteState> future : futures) {
 				DidaTradeServerState.FastVoteState vote = future.get ();

@@ -2,6 +2,7 @@ package didatrade.util;
 
 import io.grpc.stub.StreamObserver;
 
+/** Forwards at most one outcome (reply or failure) of a call to the collector. */
 public class CollectorStreamObserver<T> implements StreamObserver<T> {
 
 	GenericResponseCollector<T> collector;

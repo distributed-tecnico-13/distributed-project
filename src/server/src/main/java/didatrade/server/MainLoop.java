@@ -1,5 +1,7 @@
 package didatrade.server;
 
+import java.util.function.IntFunction;
+
 /** Single coordinator: recover a ballot, open Fast rounds, and execute in order. */
 public class MainLoop implements Runnable {
 	DidaTradeServerState server_state;
@@ -17,6 +19,8 @@ public class MainLoop implements Runnable {
 		this.ordered_executor = new OrderedPaxosExecutor (state);
 	}
 
+	// Event loop: execute decided slots in order, schedule consensus work, then sleep until woken
+	// or the next retry is due.
 	public void run () {
 		// Wait for the first event so startup cannot open an incomplete Fast cluster.
 		this.waitForWork (-1);
@@ -55,16 +59,23 @@ public class MainLoop implements Runnable {
 		}
 	}
 
+	// One scheduling pass for the current ballot; true if it made progress.
 	private boolean scheduleConsensus () {
 		int ballot = this.server_state.getCurrentBallot ();
+		// Phase 1 (once per ballot, leader only); adopts the recovered slots into the log.
 		if (!this.proposer.prepare (ballot))
 			return false;
 
+		// Dynamic membership: only the recovered prefix is re-proposed and transferred to the new
+		// group; no new requests are assigned until the transfer is done.
 		if (this.server_state.scheduler.dynamicMembership () && !this.proposer.transferComplete (ballot)) {
 			if (!this.proposer.fastRecoveryComplete (ballot))
 				return this.scheduleRecovery (ballot);
 			return this.proposer.finishTransfer (ballot);
 		}
+		// Classic: the leader assigns the slots, so one loop re-proposes recovered slots and
+		// proposes new requests. Fast: re-propose recovered slots, then open the Fast round; from
+		// then on the acceptors assign new requests to slots themselves.
 		if (this.server_state.scheduler.fastpaxos (ballot))
 			return this.scheduleFastBallot (ballot);
 		return this.scheduleClassicBallot (ballot);
@@ -82,32 +93,35 @@ public class MainLoop implements Runnable {
 		return this.scheduleRecovery (ballot);
 	}
 
+	// Re-proposes the slots Phase 1 recovered (below recoveryLimit) and nothing else. Used where
+	// the leader must not assign new requests: before a Fast round opens (the acceptors fill the
+	// slots from recoveryLimit on themselves) and during state transfer (which only covers the
+	// recovered prefix).
 	private boolean scheduleRecovery (int ballot) {
-		boolean submitted = false;
-		int limit = this.proposer.recoveryLimit (ballot);
-		for (int instance = 0; instance < limit; instance++) {
-			if (!this.pipeline.hasCapacity ())
-				break;
-			PaxosInstance entry = this.server_state.paxos_log.getEntry (instance);
-			if (entry == null || !entry.tryClaim (ballot, System.nanoTime ()))
-				continue;
-			if (!this.pipeline.submitTask ( () -> this.proposer.propose (entry, ballot))) {
-				entry.releaseClaim (ballot, 0);
-				break;
-			}
-			submitted = true;
-		}
-		return submitted;
+		// getEntry only looks slots up; it never creates a slot or assigns a request.
+		return this.scheduleSlots (ballot, this.proposer.recoveryLimit (ballot),
+				this.server_state.paxos_log::getEntry);
 	}
 
+	// In a classic ballot the leader alone assigns requests to slots, so recovered slots and new
+	// pending requests share one loop (unlike scheduleRecovery, which must leave new slots alone).
 	private boolean scheduleClassicBallot (int ballot) {
-		boolean submitted = false;
 		int limit = this.ordered_executor.getNextInstanceToExecute () + PaxosPipeline.CAPACITY;
+		// assignPendingRequest gives an empty slot the next pending request that no other slot
+		// owns. A slot that already holds a value (recovered or assigned) is returned unchanged,
+		// so it is simply re-proposed.
+		return this.scheduleSlots (ballot, limit, instance -> this.server_state.paxos_log
+				.assignPendingRequest (instance, this.server_state.req_history));
+	}
+
+	// Proposes every slot below limit that slotFor yields, until the pipeline is full. slotFor
+	// decides whether a slot may also receive a new request, or only an existing one.
+	private boolean scheduleSlots (int ballot, int limit, IntFunction<PaxosInstance> slotFor) {
+		boolean submitted = false;
 		for (int instance = 0; instance < limit; instance++) {
 			if (!this.pipeline.hasCapacity ())
 				break;
-			PaxosInstance entry = this.server_state.paxos_log.assignPendingRequest (
-					instance, this.server_state.req_history);
+			PaxosInstance entry = slotFor.apply (instance);
 			if (entry == null || !entry.tryClaim (ballot, System.nanoTime ()))
 				continue;
 			if (!this.pipeline.submitTask ( () -> this.proposer.propose (entry, ballot))) {
@@ -119,6 +133,7 @@ public class MainLoop implements Runnable {
 		return submitted;
 	}
 
+	// How long to sleep: -1 waits for an event, otherwise until the earliest retry backoff expires.
 	private long nextRetryDelayMillis () {
 		int ballot = this.server_state.getCurrentBallot ();
 		if (!this.server_state.canProposeFor (ballot) || !this.pipeline.hasCapacity ())
@@ -139,24 +154,21 @@ public class MainLoop implements Runnable {
 	}
 
 	private long nextRecoveryRetryDelayMillis (int ballot) {
-		long earliest = Long.MAX_VALUE;
-		long now = System.nanoTime ();
-		for (int instance = 0; instance < this.proposer.recoveryLimit (ballot); instance++) {
-			PaxosInstance entry = this.server_state.paxos_log.getEntry (instance);
-			if (entry == null)
-				continue;
-			long delay = entry.retryDelayMillis (ballot, now);
-			if (delay >= 0)
-				earliest = Math.min (earliest, delay);
-		}
+		long earliest = this.earliestRetryDelayMillis (ballot, 0, this.proposer.recoveryLimit (ballot));
 		return earliest == Long.MAX_VALUE ? PaxosProposer.RETRY_DELAY_MILLIS : earliest;
 	}
 
 	private long nextClassicRetryDelayMillis (int ballot) {
 		int first = this.ordered_executor.getNextInstanceToExecute ();
+		long earliest = this.earliestRetryDelayMillis (ballot, first, first + PaxosPipeline.CAPACITY);
+		return earliest == Long.MAX_VALUE ? -1 : earliest;
+	}
+
+	// Smallest retry delay over the slots [from, to), or Long.MAX_VALUE if none is waiting.
+	private long earliestRetryDelayMillis (int ballot, int from, int to) {
 		long earliest = Long.MAX_VALUE;
 		long now = System.nanoTime ();
-		for (int instance = first; instance < first + PaxosPipeline.CAPACITY; instance++) {
+		for (int instance = from; instance < to; instance++) {
 			PaxosInstance entry = this.server_state.paxos_log.getEntry (instance);
 			if (entry == null)
 				continue;
@@ -164,6 +176,6 @@ public class MainLoop implements Runnable {
 			if (delay >= 0)
 				earliest = Math.min (earliest, delay);
 		}
-		return earliest == Long.MAX_VALUE ? -1 : earliest;
+		return earliest;
 	}
 }

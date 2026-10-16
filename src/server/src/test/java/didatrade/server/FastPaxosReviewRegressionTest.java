@@ -32,11 +32,11 @@ class FastPaxosReviewRegressionTest {
 		PaxosInstance slot = new PaxosInstance (0);
 		assertTrue (slot.decide (0, 100));
 		assertTrue (slot.tryClaim (1, System.nanoTime ()));
-		assertEquals (100, slot.phaseTwoValueFor (1, 100));
+		assertEquals (100, slot.pinPhaseTwoValue (1, 100));
 		// RPC failure: Phase 2 did not obtain a quorum.
 		slot.releaseClaim (1, 0);
 		assertTrue (slot.tryClaim (1, System.nanoTime ()));
-		assertEquals (100, slot.phaseTwoValueFor (1, 999)); // cannot change within ballot
+		assertEquals (100, slot.pinPhaseTwoValue (1, 999)); // cannot change within ballot
 	}
 
 	@Test
@@ -71,7 +71,7 @@ class FastPaxosReviewRegressionTest {
 		state.paxos_log = new PaxosLog ();
 		state.my_id = 0;
 		assertTrue (state.openFastRound (1, 4));
-		DidaTradeServerState.FastVoteState vote = state.processFastVote (123);
+		DidaTradeServerState.FastVoteState vote = state.fastVote (123);
 		assertTrue (vote.accepted);
 		assertEquals (4, vote.instance);
 	}
@@ -86,7 +86,7 @@ class FastPaxosReviewRegressionTest {
 		assertTrue (state.openFastRound (1, 2));
 		assertFalse (state.isFastRoundOpen (0));
 		assertEquals (1, state.getCurrentBallot ());
-		assertEquals (2, state.processFastVote (100).instance);
+		assertEquals (2, state.fastVote (100).instance);
 		assertFalse (state.openFastRound (0));
 	}
 
@@ -97,7 +97,7 @@ class FastPaxosReviewRegressionTest {
 		state.paxos_log = new PaxosLog ();
 		state.my_id = 0;
 		assertTrue (state.openFastRound (0));
-		state.processFastVote (100);
+		state.fastVote (100);
 		assertEquals (0, state.getCurrentBallot ());
 		assertEquals (100, state.paxos_log.getEntry (0).getAcceptedValue ());
 		state.setCurrentBallot (1);

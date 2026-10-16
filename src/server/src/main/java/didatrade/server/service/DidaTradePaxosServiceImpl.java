@@ -14,6 +14,7 @@ import didatrade.server.PaxosLearnerNotifier;
 import didatrade.server.StateTransfer;
 import didatrade.server.request.RequestRecord;
 
+/** Acceptor and learner side of the replica-to-replica Paxos RPCs. */
 public class DidaTradePaxosServiceImpl extends DidaTradePaxosServiceGrpc.DidaTradePaxosServiceImplBase {
 	DidaTradeServerState server_state;
 
@@ -21,6 +22,7 @@ public class DidaTradePaxosServiceImpl extends DidaTradePaxosServiceGrpc.DidaTra
 		this.server_state = state;
 	}
 
+	// Acceptor Phase 1: promises the ballot and reports every accepted slot.
 	@Override
 	public void phaseone (DidaTradePaxos.PhaseOneRequest request, StreamObserver<DidaTradePaxos.PhaseOneReply> responseObserver) {
 		// System.out.println("Receive phase1 request: \n" + request);
@@ -62,6 +64,8 @@ public class DidaTradePaxosServiceImpl extends DidaTradePaxosServiceGrpc.DidaTra
 		responseObserver.onCompleted ();
 	}
 
+	// Acceptor Phase 2: accepts (ballot, value) for one slot under the state lock, then replies
+	// and, if accepted, notifies the learners outside the lock.
 	@Override
 	public void phasetwo (DidaTradePaxos.PhaseTwoRequest request, StreamObserver<DidaTradePaxos.PhaseTwoReply> responseObserver) {
 		// System.out.println ("Receive phase two request: \n" + request);
@@ -95,6 +99,8 @@ public class DidaTradePaxosServiceImpl extends DidaTradePaxosServiceGrpc.DidaTra
 
 	}
 
+	// Dynamic membership: installs the recovered prefix pushed by the new leader (see
+	// StateTransfer).
 	@Override
 	public void installstate (DidaTradePaxos.InstallStateRequest request,
 			StreamObserver<DidaTradePaxos.InstallStateReply> observer) {
@@ -108,6 +114,7 @@ public class DidaTradePaxosServiceImpl extends DidaTradePaxosServiceGrpc.DidaTra
 			this.server_state.wakeMainLoop ();
 	}
 
+	// Opens the Fast round and immediately votes for requests that are already pending.
 	@Override
 	public void openfast (DidaTradePaxos.OpenFastRequest request, StreamObserver<DidaTradePaxos.OpenFastReply> responseObserver) {
 		int ballot = request.getBallot ();
@@ -129,6 +136,8 @@ public class DidaTradePaxosServiceImpl extends DidaTradePaxosServiceGrpc.DidaTra
 			FastPaxosAcceptor.acceptPendingRequests (this.server_state);
 	}
 
+	// Learner: records one acceptor's vote. A decision completes the ballot; a Fast collision (no
+	// value can reach the Fast quorum) moves on to the next ballot.
 	@Override
 	public void learn (DidaTradePaxos.LearnRequest request, StreamObserver<DidaTradePaxos.LearnReply> responseObserver) {
 		// System.out.println("Receive learn request: \n" + request);
@@ -152,7 +161,7 @@ public class DidaTradePaxosServiceImpl extends DidaTradePaxosServiceGrpc.DidaTra
 			System.out.println ("Paxos learner for instance " + instance + " : number of distinct accepts " + entry.getAcceptCount (ballot));
 			if (became_decided) {
 				System.out.println ("Paxos learner: waking up the main loop");
-				this.server_state.updateCompletedBallot (ballot);
+				this.server_state.updateCompletedBallot ();
 				this.server_state.getMainLoop ().wakeup ();
 			} else if (!request.getClassic ()
 					&& entry.fastRoundCollided (ballot, decision_quorum,

@@ -2,6 +2,10 @@ package didatrade.configs;
 
 import java.util.*;
 
+/**
+ * 5 replicas, every ballot runs Fast Paxos. Fast quorum 4, classic and recovery quorum 3, leader
+ * ballot % 3.
+ */
 public class ScheduleB extends Schedule {
 	private List<Integer> all_participants = Arrays.asList (0, 1, 2, 3, 4);
 	private List<Integer> all_learners = Arrays.asList (0, 1, 2, 3, 4);

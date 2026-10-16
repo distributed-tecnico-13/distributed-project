@@ -12,6 +12,7 @@ import didatrade.util.*;
 import io.grpc.ManagedChannel;
 import io.grpc.ManagedChannelBuilder;
 
+/** Operator console: starts ballots, activates them and sets debug modes on replicas. */
 public class Console {
 	private int ballot_completed = -1;
 	private int last_ballot = -1;
@@ -127,6 +128,8 @@ public class Console {
 					System.out.println ("\t  0 no-op, 1 crash, 2 freeze, 3 un-freeze, 4 slow-mode-on, 5 slow-mode-off");
 					System.out.println ("\texit");
 					break;
+				// newballot blocks at the replica until the ballot is completed, so its reply is
+				// collected on a background thread.
 				case "ballot" :
 					System.out.println ("ballot " + parameter1 + " " + parameter2);
 					if ((parameter1 != null) && (parameter2 != null)) {

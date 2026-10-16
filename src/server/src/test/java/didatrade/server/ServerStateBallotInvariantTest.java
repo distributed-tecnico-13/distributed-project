@@ -54,11 +54,11 @@ class ServerStateBallotInvariantTest {
 		state.paxos_log.testAndSetEntry (0).decide (2, 100);
 		state.paxos_log.testAndSetEntry (2).decide (7, 300);
 
-		state.updateCompletedBallot (7);
+		state.updateCompletedBallot ();
 		assertEquals (7, state.getCompletedBallot ());
 
 		state.paxos_log.testAndSetEntry (1).decide (5, 200);
-		state.updateCompletedBallot (7);
+		state.updateCompletedBallot ();
 		assertEquals (7, state.getCompletedBallot ());
 	}
 }

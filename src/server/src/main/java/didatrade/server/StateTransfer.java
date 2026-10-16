@@ -10,12 +10,16 @@ public final class StateTransfer {
 	private StateTransfer() {
 	}
 
+	// Acceptor side of PaxosProposer.finishTransfer: installs commands and decided entries
+	// atomically. Rejects older ballots and conflicting commands.
 	public static boolean install (DidaTradeServerState state, DidaTradePaxos.InstallStateRequest request) {
 		int ballot = request.getBallot ();
 		synchronized (state) {
 			if (ballot < state.getCurrentBallot ())
 				return false;
 			state.setCurrentBallot (ballot);
+			// The leader already recovered these slots, so they are accepted and decided right
+			// away.
 			// Installation can finish before execution; the executor waits for delayed client commands.
 			for (DidaTradePaxos.PhaseOneResponseLogObject e : request.getEntriesList ()) {
 				PaxosInstance local = state.paxos_log.testAndSetEntry (e.getInstance ());

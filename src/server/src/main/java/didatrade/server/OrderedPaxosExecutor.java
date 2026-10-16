@@ -18,6 +18,8 @@ final class OrderedPaxosExecutor {
 		return this.next_instance_to_execute;
 	}
 
+	// Executes decided slots strictly in log order and stops at the first undecided slot or missing
+	// command. Returns how many slots were executed.
 	int drain () {
 		int executed_count = 0;
 		while (true) {
@@ -25,6 +27,8 @@ final class OrderedPaxosExecutor {
 			if (entry == null || !entry.isDecided ())
 				return executed_count;
 
+			// Executing and advancing last_executed_instance are atomic, so a balance read never
+			// sees one without the other.
 			synchronized (this.server_state) {
 				if (!entry.isExecuted () && !this.executeCommand (entry))
 					return executed_count;
@@ -37,6 +41,8 @@ final class OrderedPaxosExecutor {
 		}
 	}
 
+	// False if the command has not arrived yet (the slot is retried later). A request decided in
+	// several slots executes only once.
 	private boolean executeCommand (PaxosInstance entry) {
 		if (entry.isNoop ())
 			return true;
@@ -56,6 +62,7 @@ final class OrderedPaxosExecutor {
 
 	private boolean executeAction (DidaTradeCommand command, int instance) {
 		boolean result = false;
+		// The instance goes back to the client as its causal ordering token.
 		command.setInstance (instance);
 		switch (command.getAction ()) {
 			case DidaTradeAction.POPULATE :

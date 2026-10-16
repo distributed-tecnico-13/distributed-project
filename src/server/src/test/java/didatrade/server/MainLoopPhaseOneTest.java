@@ -40,9 +40,9 @@ class MainLoopPhaseOneTest {
 	@Test
 	void sameBallotRetryCannotChangeAnAlreadySentPhaseTwoValue () {
 		PaxosInstance entry = new PaxosInstance (0);
-		assertEquals (101, entry.phaseTwoValueFor (REQUEST_BALLOT, 101));
-		assertEquals (101, entry.phaseTwoValueFor (REQUEST_BALLOT, 301));
-		assertEquals (301, entry.phaseTwoValueFor (REQUEST_BALLOT + 1, 301));
+		assertEquals (101, entry.pinPhaseTwoValue (REQUEST_BALLOT, 101));
+		assertEquals (101, entry.pinPhaseTwoValue (REQUEST_BALLOT, 301));
+		assertEquals (301, entry.pinPhaseTwoValue (REQUEST_BALLOT + 1, 301));
 	}
 
 	@Test

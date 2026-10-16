@@ -6,6 +6,7 @@ import java.util.concurrent.TimeUnit;
 import didatrade.DidaTradePaxos;
 import io.grpc.Context;
 
+/** Acceptors announce their votes to the learners (Learn RPC). */
 public final class PaxosLearnerNotifier {
 	private PaxosLearnerNotifier() {
 	}
@@ -15,6 +16,8 @@ public final class PaxosLearnerNotifier {
 		notifyAccepted (state, instance, ballot, value, false);
 	}
 
+	// Fire-and-forget, called after the locked state change. classic marks
+	// a Phase 2 accept (classic quorum); otherwise it is a Fast vote (Fast quorum).
 	public static void notifyAccepted (
 			DidaTradeServerState state, int instance, int ballot, int value, boolean classic) {
 		Context context = Context.current ().fork ();

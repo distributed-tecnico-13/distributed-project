@@ -159,7 +159,7 @@ class DynamicMembershipIntegrationTest {
 			for (int id = 0; id < 5; id++) {
 				int request = id < 4 ? 101 : 201;
 				assertTrue (c.states[id].openFastRound (0));
-				assertTrue (c.states[id].processFastVote (request).accepted);
+				assertTrue (c.states[id].fastVote (request).accepted);
 			}
 			// Force the first new majority to be 2,3,4, so it sees both values.
 			// Old-group recovery is still required before the first transfer.
@@ -183,7 +183,7 @@ class DynamicMembershipIntegrationTest {
 				int request = id * 100 + 1;
 				c.states[id].req_history.addToPending (request, new RequestRecord (request, new DidaTradeCommand (DidaTradeAction.ADDUSER, 77 + id, 100, 10)));
 				assertTrue (c.states[id].openFastRound (0));
-				assertTrue (c.states[id].processFastVote (request).accepted);
+				assertTrue (c.states[id].fastVote (request).accepted);
 			}
 			for (int id : List.of (0, 1, 2))
 				assertTrue (c.states[id].processPhaseOne (2).accepted);

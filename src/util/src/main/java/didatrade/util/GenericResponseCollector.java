@@ -2,6 +2,10 @@ package didatrade.util;
 
 import java.util.ArrayList;
 
+/**
+ * Collects async replies. Done when the processor says so, or when every reply or failure has
+ * arrived.
+ */
 public class GenericResponseCollector<T> {
 	private GenericResponseProcessor<T> processor;
 	private ArrayList<T> collected_responses;
@@ -38,6 +42,7 @@ public class GenericResponseCollector<T> {
 		notifyAll ();
 	}
 
+	// A failed call still counts towards "everyone answered".
 	public synchronized void addNoResponse () {
 		this.pending--;
 		if (this.pending == 0)
@@ -45,6 +50,8 @@ public class GenericResponseCollector<T> {
 		notifyAll ();
 	}
 
+	// For callers without a processor: waits for quorum replies, or until all calls have replied or
+	// failed.
 	public synchronized void waitForQuorum (int quorum) {
 		while ((this.done == false) && (this.received < quorum)) {
 			try {

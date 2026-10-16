@@ -12,6 +12,7 @@ import didatrade.server.request.DidaTradeAction;
 import didatrade.server.request.DidaTradeCommand;
 import didatrade.server.request.RequestRecord;
 
+/** Client RPCs: commands go through consensus, balance reads are served locally. */
 public class DidaTradeMainServiceImpl extends DidaTradeMainServiceGrpc.DidaTradeMainServiceImplBase {
 
 	DidaTradeServerState server_state;
@@ -20,6 +21,8 @@ public class DidaTradeMainServiceImpl extends DidaTradeMainServiceGrpc.DidaTrade
 		this.server_state = state;
 	}
 
+	// Registers the request (idempotent per reqid), offers it to the Fast path or else wakes the
+	// MainLoop, and blocks until it was executed.
 	private boolean submitAndWait (int reqid, DidaTradeCommand command) {
 		RequestRecord request_record = new RequestRecord (reqid, command);
 		boolean result = this.server_state.req_history.addToPending (reqid, request_record);
@@ -149,6 +152,7 @@ public class DidaTradeMainServiceImpl extends DidaTradeMainServiceGrpc.DidaTrade
 		responseObserver.onCompleted ();
 	}
 
+	// Read only, served locally once this replica has executed up to the client's mininstance.
 	@Override
 	public void balance (DidaTradeMain.BalanceRequest request, StreamObserver<DidaTradeMain.BalanceReply> responseObserver) {
 		// for debug purposes
