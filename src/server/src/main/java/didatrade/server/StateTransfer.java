@@ -25,7 +25,7 @@ public final class StateTransfer {
 				PaxosInstance local = state.paxos_log.testAndSetEntry (e.getInstance ());
 				if (state.scheduler.isacceptor (state.my_id, ballot)) {
 					local.accept (ballot, e.getValue ());
-					local.noteClassicAcceptance (ballot, e.getValue ());
+					local.noteClassicAcceptance (e.getValue ());
 				}
 				local.decide (ballot, e.getValue ());
 			}

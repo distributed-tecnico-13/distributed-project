@@ -21,7 +21,6 @@ import didatrade.server.request.RequestHistory;
  */
 public final class DidaTradeServerState {
 	public static final int DEFAULT_POPULATION = 10;
-	int max_participants;
 	TradeManager trade_manager;
 	ConfigurationScheduler scheduler;
 	int base_port;
@@ -202,7 +201,7 @@ public final class DidaTradeServerState {
 			this.setCurrentBallot (ballot);
 			accepted = entry.accept (ballot, value);
 			if (accepted)
-				entry.noteClassicAcceptance (ballot, value);
+				entry.noteClassicAcceptance (value);
 		}
 		return new PhaseTwoState (accepted, this.current_ballot);
 	}

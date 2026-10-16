@@ -18,7 +18,6 @@ public class PaxosInstance {
 	private int accept_ballot;
 	private final LearnInfo learn_info = new LearnInfo ();
 	private boolean decided;
-	private boolean value_is_locked;
 	private boolean executed;
 	// This server's attempt to propose the slot.
 	private final LocalProposal proposal = new LocalProposal ();
@@ -34,7 +33,6 @@ public class PaxosInstance {
 		this.accepted_value = 0;
 		this.accept_ballot = -1;
 		this.decided = false;
-		this.value_is_locked = false;
 		this.executed = false;
 	}
 
@@ -198,7 +196,7 @@ public class PaxosInstance {
 	}
 
 	// Only an actual successful Phase 2 changes acceptor-owned proposal bookkeeping.
-	public synchronized void noteClassicAcceptance (int ballot, int value) {
+	public synchronized void noteClassicAcceptance (int value) {
 		if (!this.decided)
 			this.proposal.proposed_request_id = value;
 	}
