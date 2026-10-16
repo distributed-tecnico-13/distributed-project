@@ -1,7 +1,6 @@
 package didatrade.server;
 
 import java.util.concurrent.RejectedExecutionException;
-import java.util.function.IntFunction;
 
 /** Single coordinator: recover a ballot, open Fast rounds, and execute in order. */
 public class MainLoop implements Runnable {
@@ -113,26 +112,25 @@ public class MainLoop implements Runnable {
 	// Re-proposes the slots Phase 1 recovered (below recoveryLimit) and nothing else. Used where
 	// the leader must not assign new requests: before a Fast round opens and during state transfer
 	private boolean scheduleRecovery (int ballot) {
-		// getEntry only looks slots up; it never creates a slot or assigns a request.
-		return this.scheduleSlots (ballot, this.proposer.recoveryLimit (ballot),
-				this.server_state.paxos_log::getEntry);
+		return this.scheduleSlots (ballot, this.proposer.recoveryLimit (ballot));
 	}
 
-	// In a classic ballot the leader alone assigns requests to slots, so recovered slots and new
-	// pending requests share one loop (unlike scheduleRecovery, which must leave new slots alone).
+	// In a classic ballot the leader alone assigns requests to slots: it first gives the pending
+	// requests the free slots of the window, then proposes every slot in it, recovered ones included.
 	private boolean scheduleClassicBallot (int ballot) {
-		int limit = this.ordered_executor.getNextInstanceToExecute () + PaxosPipeline.CAPACITY;
-		return this.scheduleSlots (ballot, limit, instance -> this.server_state.paxos_log
-				.assignPendingRequest (instance, this.server_state.req_history));
+		int first = this.ordered_executor.getNextInstanceToExecute ();
+		int limit = first + PaxosPipeline.CAPACITY;
+		this.server_state.paxos_log.assignPendingRequests (this.server_state.req_history, first, limit);
+		return this.scheduleSlots (ballot, limit);
 	}
 
-	// Proposes every slot below limit that slotFor yields, until the pipeline is full.
-	private boolean scheduleSlots (int ballot, int limit, IntFunction<PaxosInstance> slotFor) {
+	// Proposes every slot below limit that holds a value, until the pipeline is full.
+	private boolean scheduleSlots (int ballot, int limit) {
 		boolean submitted = false;
 		for (int instance = 0; instance < limit; instance++) {
 			if (!this.pipeline.hasCapacity ())
 				break;
-			PaxosInstance entry = slotFor.apply (instance);
+			PaxosInstance entry = this.server_state.paxos_log.getEntry (instance);
 			if (entry == null || !entry.tryClaim (ballot, System.nanoTime ()))
 				continue;
 			if (!this.pipeline.submitTask ( () -> this.proposer.propose (entry, ballot))) {

@@ -5,8 +5,6 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
-import java.util.Set;
-
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import didatrade.server.request.CommandIdKind;
@@ -37,18 +35,6 @@ class RequestHistoryInvariantTest {
 		assertNull (history.getIfPending (101));
 		assertSame (record, history.getIfProcessed (101));
 		assertSame (record, history.getIfExists (101));
-	}
-
-	@Test
-	void pendingSelectionSkipsEveryExcludedRequest () {
-		RequestHistory history = new RequestHistory ();
-		RequestRecord first = new RequestRecord (101);
-		RequestRecord second = new RequestRecord (202);
-		assertTrue (history.addToPending (101, first));
-		assertTrue (history.addToPending (202, second));
-
-		RequestRecord selected = history.getFirstPendingExcluding (Set.of (101));
-		assertSame (second, selected);
 	}
 
 	@Disabled("Potential idempotency bug: decide desired duplicate-request semantics before enabling")

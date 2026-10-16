@@ -3,6 +3,7 @@ package didatrade.server;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.HashSet;
@@ -20,7 +21,7 @@ import didatrade.server.request.RequestRecord;
 class PaxosPipelineTest {
 
 	// This exclusivity is optional: the executor executes each command id only once no matter
-	// how many slots hold it. assignPendingRequest only avoids the duplicate because it's cheap
+	// how many slots hold it. assignPendingRequests only avoids the duplicate because it's cheap
 	// to do here for the proposer; it is not required for correctness.
 	@Test
 	void logAssignsDistinctPendingRequestsToDistinctSlots () throws Exception {
@@ -32,11 +33,10 @@ class PaxosPipelineTest {
 		ExecutorService allocators = Executors.newFixedThreadPool (8);
 		CountDownLatch start = new CountDownLatch (1);
 		try {
-			for (int slot = 0; slot < 32; slot++) {
-				int instance = slot;
+			for (int worker = 0; worker < 8; worker++) {
 				allocators.submit ( () -> {
 					await (start);
-					log.assignPendingRequest (instance, history);
+					log.assignPendingRequests (history, 0, 32);
 				});
 			}
 			start.countDown ();
@@ -65,9 +65,26 @@ class PaxosPipelineTest {
 		history.addToPending (200, new RequestRecord (200));
 		log.testAndSetEntry (0).decide (5, 100);
 
-		PaxosInstance next = log.assignPendingRequest (1, history);
-		assertNotNull (next);
-		assertEquals (200, next.getProposedRequestId ());
+		log.assignPendingRequests (history, 0, 2);
+		assertEquals (200, log.getEntry (1).getProposedRequestId ());
+	}
+
+	// A request that arrives after a free slot was seen must still take that slot: a request
+	// above a free slot would leave a hole that blocks in-order execution.
+	@Test
+	void pendingRequestTakesTheLowestFreeSlot () {
+		PaxosLog log = new PaxosLog ();
+		RequestHistory history = new RequestHistory ();
+		log.adopt (1, 100);
+		history.addToPending (200, new RequestRecord (200));
+		history.addToPending (300, new RequestRecord (300));
+		history.addToPending (400, new RequestRecord (400));
+
+		log.assignPendingRequests (history, 0, 3);
+		assertEquals (200, log.getEntry (0).getProposedRequestId ());
+		assertEquals (100, log.getEntry (1).getProposedRequestId ());
+		assertEquals (300, log.getEntry (2).getProposedRequestId ());
+		assertNull (log.getEntry (3));
 	}
 
 	@Test

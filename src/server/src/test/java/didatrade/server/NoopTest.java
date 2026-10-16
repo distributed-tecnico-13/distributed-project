@@ -78,13 +78,13 @@ class NoopTest {
 		log.fillNoop (1);
 		history.addToPending (100, new RequestRecord (100));
 
-		assertEquals (CommandIdKind.NOOP_ID,
-				log.assignPendingRequest (0, history).getProposedRequestId ());
-		assertEquals (CommandIdKind.NOOP_ID,
-				log.assignPendingRequest (1, history).getProposedRequestId ());
-		assertEquals (100, log.assignPendingRequest (2, history).getProposedRequestId ());
+		log.assignPendingRequests (history, 0, 4);
+		assertEquals (CommandIdKind.NOOP_ID, log.getEntry (0).getProposedRequestId ());
+		assertEquals (CommandIdKind.NOOP_ID, log.getEntry (1).getProposedRequestId ());
+		assertEquals (100, log.getEntry (2).getProposedRequestId ());
 		history.addToPending (200, new RequestRecord (200));
-		assertEquals (200, log.assignPendingRequest (3, history).getProposedRequestId ());
+		log.assignPendingRequests (history, 0, 4);
+		assertEquals (200, log.getEntry (3).getProposedRequestId ());
 	}
 
 	@Test
