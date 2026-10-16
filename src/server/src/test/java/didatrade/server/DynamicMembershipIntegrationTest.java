@@ -20,6 +20,7 @@ import io.grpc.Server;
 import io.grpc.ServerBuilder;
 import didatrade.server.request.DidaTradeAction;
 import didatrade.server.request.DidaTradeCommand;
+import didatrade.server.request.RequestRecord;
 import didatrade.server.service.DidaTradeMainServiceImpl;
 import didatrade.server.service.DidaTradeMasterServiceImpl;
 import didatrade.server.service.DidaTradePaxosServiceImpl;
@@ -133,7 +134,7 @@ class DynamicMembershipIntegrationTest {
 		try (Cluster c = new Cluster ()) {
 			for (int id = 0; id < 5; id++) {
 				assertTrue (c.states[id].openFastRound (0));
-				assertTrue (c.states[id].processFastVote (id < 3 ? 101 : 201).accepted);
+				assertTrue (c.states[id].fastVote (id < 3 ? 101 : 201).accepted);
 			}
 			for (int id = 0; id < 4; id++)
 				DidaTradePaxosServiceGrpc.newBlockingStub (c.channels[1]).withDeadlineAfter (5, TimeUnit.SECONDS).learn (

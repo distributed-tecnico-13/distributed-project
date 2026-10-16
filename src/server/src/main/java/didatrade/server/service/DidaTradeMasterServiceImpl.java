@@ -77,7 +77,7 @@ public class DidaTradeMasterServiceImpl extends DidaTradeMasterServiceGrpc.DidaT
 
 		DidaTradeMaster.ActivateReply.Builder response_builder = DidaTradeMaster.ActivateReply.newBuilder ();
 		response_builder.setReqid (request_id);
-		response_builder.setAck (!this.server_state.scheduler.dynamicMembership ()
+		response_builder.setAck (!this.server_state.getScheduler ().dynamicMembership ()
 				|| (this.server_state.canProposeFor (completed_ballot)
 						&& completed_ballot <= this.server_state.getCompletedBallot ()));
 

@@ -12,7 +12,6 @@ import didatrade.server.FastPaxosAcceptor;
 import didatrade.server.PaxosInstance;
 import didatrade.server.PaxosLearnerNotifier;
 import didatrade.server.StateTransfer;
-import didatrade.server.request.RequestRecord;
 
 /** Acceptor and learner side of the replica-to-replica Paxos RPCs. */
 public class DidaTradePaxosServiceImpl extends DidaTradePaxosServiceGrpc.DidaTradePaxosServiceImplBase {

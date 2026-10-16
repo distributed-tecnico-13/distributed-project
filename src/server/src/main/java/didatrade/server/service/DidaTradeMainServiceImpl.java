@@ -7,7 +7,6 @@ import didatrade.server.DidaTradeServerState.BalanceResult;
 import io.grpc.stub.StreamObserver;
 import didatrade.server.DidaTradeServerState;
 import didatrade.server.FastPaxosAcceptor;
-import didatrade.server.request.CommandIdKind;
 import didatrade.server.request.DidaTradeAction;
 import didatrade.server.request.DidaTradeCommand;
 import didatrade.server.request.RequestRecord;
@@ -25,7 +24,7 @@ public class DidaTradeMainServiceImpl extends DidaTradeMainServiceGrpc.DidaTrade
 	// MainLoop, and blocks until it was executed.
 	private boolean submitAndWait (int reqid, DidaTradeCommand command) {
 		RequestRecord request_record = new RequestRecord (reqid, command);
-		boolean result = this.server_state.req_history.addToPending (reqid, request_record);
+		boolean result = this.server_state.getRequestHistory ().addToPending (reqid, request_record);
 		if (!result)
 			return false;
 
