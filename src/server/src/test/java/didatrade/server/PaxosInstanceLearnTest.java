@@ -146,25 +146,38 @@ class PaxosInstanceLearnTest {
 	}
 
 	@Test
-	void fastRoundCollidesOnlyAfterAQuorumOfLearns () {
+	void fastBallotCanDetectThatNoValueCanStillReachQuorum () {
+		PaxosInstance entry = new PaxosInstance (0);
+
+		assertFalse (entry.recordLearn (5, 100, 0, 2));
+		assertFalse (entry.recordLearn (5, 200, 1, 2));
+		assertFalse (entry.cannotReachQuorum (5, 2, 3));
+
+		assertFalse (entry.recordLearn (5, 300, 2, 2));
+		assertTrue (entry.cannotReachQuorum (5, 2, 3));
+		assertFalse (entry.isDecided ());
+	}
+
+	@Test
+	void fastRoundCollidesOnQuorumOfLearnsOrUnreachableQuorum () {
 		PaxosInstance split = new PaxosInstance (0);
 		split.recordLearn (5, 100, 0, 4);
 		split.recordLearn (5, 100, 1, 4);
 		split.recordLearn (5, 100, 2, 4);
-		assertFalse (split.fastRoundCollided (5, 4));
+		assertFalse (split.fastRoundCollided (5, 4, 5));
 		split.recordLearn (5, 200, 3, 4);
-		assertTrue (split.fastRoundCollided (5, 4));
+		assertTrue (split.fastRoundCollided (5, 4, 5));
 
-		PaxosInstance threeWaySplit = new PaxosInstance (1);
-		threeWaySplit.recordLearn (5, 100, 0, 4);
-		threeWaySplit.recordLearn (5, 200, 1, 4);
-		threeWaySplit.recordLearn (5, 300, 2, 4);
-		assertFalse (threeWaySplit.fastRoundCollided (5, 4));
+		PaxosInstance unreachable = new PaxosInstance (1);
+		unreachable.recordLearn (5, 100, 0, 4);
+		unreachable.recordLearn (5, 200, 1, 4);
+		unreachable.recordLearn (5, 300, 2, 4);
+		assertTrue (unreachable.fastRoundCollided (5, 4, 5));
 
 		PaxosInstance chosen = new PaxosInstance (2);
 		for (int acceptor = 0; acceptor < 4; acceptor++)
 			chosen.recordLearn (5, 100, acceptor, 4);
-		assertFalse (chosen.fastRoundCollided (5, 4));
+		assertFalse (chosen.fastRoundCollided (5, 4, 5));
 	}
 
 	@Test
@@ -189,6 +202,16 @@ class PaxosInstanceLearnTest {
 
 		assertTrue (entry.isDecided ());
 		assertEquals (100, entry.getCommandId ());
+	}
+
+	@Test
+	void twoWaySplitIsStillRecoverableWhileThirdAcceptorIsMissing () {
+		PaxosInstance entry = new PaxosInstance (0);
+
+		assertFalse (entry.recordLearn (5, 100, 0, 2));
+		assertFalse (entry.recordLearn (5, 200, 1, 2));
+
+		assertFalse (entry.cannotReachQuorum (5, 2, 3));
 	}
 
 }

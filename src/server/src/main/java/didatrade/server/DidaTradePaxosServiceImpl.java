@@ -149,7 +149,8 @@ public class DidaTradePaxosServiceImpl extends DidaTradePaxosServiceGrpc.DidaTra
 				this.server_state.updateCompletedBallot (ballot);
 				this.server_state.main_loop.wakeup ();
 			} else if (!request.getClassic ()
-					&& entry.fastRoundCollided (ballot, decision_quorum)
+					&& entry.fastRoundCollided (ballot, decision_quorum,
+							this.server_state.scheduler.acceptors (ballot).size ())
 					&& this.server_state.advanceFromCollidedFastBallot (ballot)) {
 				// Learners may disagree, e.g. on a 4-1 split another learner may see the
 				// four matching votes first and decide. Advancing stays safe either way.

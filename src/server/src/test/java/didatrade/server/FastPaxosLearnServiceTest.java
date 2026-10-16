@@ -54,7 +54,7 @@ class FastPaxosLearnServiceTest {
 	}
 
 	@Test
-	void threeWayFastCollisionWaitsForAQuorumOfLearns () {
+	void threeWayFastCollisionAdvancesToNextBallot () {
 		DidaTradeServerState state = state ();
 		DidaTradePaxosServiceImpl service = new DidaTradePaxosServiceImpl (state);
 
@@ -64,8 +64,6 @@ class FastPaxosLearnServiceTest {
 		learn (service, 0, 0, 300, 2);
 
 		assertFalse (state.paxos_log.getEntry (0).isDecided ());
-		assertEquals (0, state.getCurrentBallot ());
-		learn (service, 0, 0, 100, 3);
 		assertEquals (1, state.getCurrentBallot ());
 	}
 
@@ -106,14 +104,12 @@ class FastPaxosLearnServiceTest {
 		learn (service, 0, 0, 100, 0);
 		learn (service, 0, 0, 200, 1);
 		learn (service, 0, 0, 300, 2);
-		learn (service, 0, 0, 400, 3);
 		assertEquals (1, state.getCurrentBallot ());
 
 		learn (service, 0, 0, 400, 3);
 		learn (service, 1, 0, 500, 0);
 		learn (service, 1, 0, 600, 1);
 		learn (service, 1, 0, 700, 2);
-		learn (service, 1, 0, 800, 3);
 
 		assertEquals (1, state.getCurrentBallot ());
 	}
