@@ -159,6 +159,28 @@ class PaxosInstanceLearnTest {
 	}
 
 	@Test
+	void fastRoundCollidesOnQuorumOfLearnsOrUnreachableQuorum () {
+		PaxosInstance split = new PaxosInstance (0);
+		split.recordLearn (5, 100, 0, 4);
+		split.recordLearn (5, 100, 1, 4);
+		split.recordLearn (5, 100, 2, 4);
+		assertFalse (split.fastRoundCollided (5, 4, 5));
+		split.recordLearn (5, 200, 3, 4);
+		assertTrue (split.fastRoundCollided (5, 4, 5));
+
+		PaxosInstance unreachable = new PaxosInstance (1);
+		unreachable.recordLearn (5, 100, 0, 4);
+		unreachable.recordLearn (5, 200, 1, 4);
+		unreachable.recordLearn (5, 300, 2, 4);
+		assertTrue (unreachable.fastRoundCollided (5, 4, 5));
+
+		PaxosInstance chosen = new PaxosInstance (2);
+		for (int acceptor = 0; acceptor < 4; acceptor++)
+			chosen.recordLearn (5, 100, acceptor, 4);
+		assertFalse (chosen.fastRoundCollided (5, 4, 5));
+	}
+
+	@Test
 	void conflictingDuplicateFromSameAcceptorIsIgnored () {
 		PaxosInstance entry = new PaxosInstance (0);
 

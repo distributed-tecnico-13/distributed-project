@@ -128,6 +128,18 @@ public class PaxosInstance {
 		return this.learn_info.cannotReachQuorum (ballot, quorum, n_acceptors);
 	}
 
+	// Not proof that nothing was chosen: on a 3-1 split the missing acceptor may still
+	// complete the quorum. Message from prefessor:
+	// "A node automatically changes the ballot after receiving a fast quorum of “learns”
+	// where no value has a supermajority." Therefore we either advance here or when we are already
+	// sure a majority cannot be reached. Blocked states are possible, here the console must issue
+	// a new ballot.
+	public synchronized boolean fastRoundCollided (int ballot, int quorum, int n_acceptors) {
+		return this.learn_info.acceptCount (ballot) < quorum
+				&& (this.learn_info.responderCount (ballot) >= quorum
+						|| this.learn_info.cannotReachQuorum (ballot, quorum, n_acceptors));
+	}
+
 	public synchronized int getProposedRequestId () {
 		return this.proposal.proposed_request_id;
 	}
@@ -277,18 +289,23 @@ public class PaxosInstance {
 			return CommandIdHelper.ABSENT_VALUE;
 		}
 
+		// recordVote() keeps one vote per acceptor, so the vote sets are disjoint.
+		int responderCount (int ballot) {
+			Map<Integer, LearnVotes> values = this.learn_votes.get (ballot);
+			if (values == null)
+				return 0;
+			int responders = 0;
+			for (LearnVotes votes : values.values ())
+				responders += votes.accepted_by.size ();
+			return responders;
+		}
+
 		boolean cannotReachQuorum (int ballot, int quorum, int n_acceptors) {
 			Map<Integer, LearnVotes> values = this.learn_votes.get (ballot);
 			if (values == null || values.isEmpty ())
 				return false;
-			Set<Integer> responders = new HashSet<> ();
-			int highest_count = 0;
-			for (LearnVotes votes : values.values ()) {
-				responders.addAll (votes.accepted_by);
-				highest_count = Math.max (highest_count, votes.accepted_by.size ());
-			}
-			int remaining = Math.max (0, n_acceptors - responders.size ());
-			return highest_count + remaining < quorum;
+			int remaining = Math.max (0, n_acceptors - this.responderCount (ballot));
+			return this.acceptCount (ballot) + remaining < quorum;
 		}
 
 		private static final class LearnVotes {

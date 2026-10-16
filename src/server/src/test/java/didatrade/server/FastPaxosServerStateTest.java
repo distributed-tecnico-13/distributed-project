@@ -69,6 +69,19 @@ class FastPaxosServerStateTest {
 	}
 
 	@Test
+	void collidedFastBallotAdvancesOnceAndClosesFastRound () {
+		DidaTradeServerState state = state ('B', 0);
+		assertTrue (state.openFastRound (0));
+
+		assertTrue (state.advanceFromCollidedFastBallot (0));
+
+		assertEquals (1, state.getCurrentBallot ());
+		assertFalse (state.processFastVote (100).accepted);
+		assertFalse (state.advanceFromCollidedFastBallot (0));
+		assertEquals (1, state.getCurrentBallot ());
+	}
+
+	@Test
 	void higherBallotClosesPreviouslyOpenedFastRound () {
 		DidaTradeServerState state = state ('B', 0);
 		assertTrue (state.openFastRound (0));
