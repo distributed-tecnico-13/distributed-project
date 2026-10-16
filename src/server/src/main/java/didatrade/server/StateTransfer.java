@@ -3,15 +3,14 @@ package didatrade.server;
 import static didatrade.configs.ScheduleC.MEMBERSHIP_CHANGE_BALLOT;
 
 import didatrade.DidaTradePaxos;
-import didatrade.server.request.DidaTradeCommand;
 
 /** Installs a prefix already confirmed by the non-Byzantine ballot leader. */
 public final class StateTransfer {
 	private StateTransfer() {
 	}
 
-	// Acceptor side of PaxosProposer.finishTransfer: installs commands and decided entries
-	// atomically. Rejects older ballots and conflicting commands.
+	// Acceptor side of PaxosProposer.finishTransfer: installs the decided entries atomically.
+	// Rejects older ballots.
 	public static boolean install (DidaTradeServerState state, DidaTradePaxos.InstallStateRequest request) {
 		int ballot = request.getBallot ();
 		synchronized (state) {

@@ -38,6 +38,9 @@ public class DidaTradeServer {
 		char scheduler = args[2].charAt (0);
 
 		server_state = new DidaTradeServerState (base_port, my_id, scheduler);
+		// An unexpected error in the MainLoop means this replica's Paxos state can no longer be
+		// trusted. Crash like any failed replica; the others carry on. Should not happen.
+		server_state.getMainLoop ().setFatalHandler ( () -> System.exit (1));
 
 		port = base_port + my_id;
 

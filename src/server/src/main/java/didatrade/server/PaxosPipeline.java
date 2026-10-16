@@ -29,6 +29,10 @@ final class PaxosPipeline {
 			this.workers.execute ( () -> {
 				try {
 					task.run ();
+				} catch (RuntimeException e) {
+					// Would otherwise end this worker thread with only a stack trace on stderr.
+					System.err.println ("PaxosPipeline: task failed: " + e);
+					e.printStackTrace ();
 				} finally {
 					this.capacity.release ();
 					this.completion_signal.run ();

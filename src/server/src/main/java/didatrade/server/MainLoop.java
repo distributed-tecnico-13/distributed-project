@@ -1,5 +1,6 @@
 package didatrade.server;
 
+import java.util.concurrent.RejectedExecutionException;
 import java.util.function.IntFunction;
 
 /** Single coordinator: recover a ballot, open Fast rounds, and execute in order. */
@@ -10,6 +11,10 @@ public class MainLoop implements Runnable {
 	private final PaxosPipeline pipeline;
 	private final PaxosProposer proposer;
 	private final OrderedPaxosExecutor ordered_executor;
+	// Called when the loop hits an unexpected error. The server process installs System.exit here;
+	// by default (for tests) only this loop ends.
+	private volatile Runnable fatal_handler = () -> {
+	};
 
 	public MainLoop(DidaTradeServerState state) {
 		this.server_state = state;
@@ -17,6 +22,10 @@ public class MainLoop implements Runnable {
 		this.pipeline = new PaxosPipeline (this::signal);
 		this.proposer = new PaxosProposer (state);
 		this.ordered_executor = new OrderedPaxosExecutor (state);
+	}
+
+	public void setFatalHandler (Runnable handler) {
+		this.fatal_handler = handler;
 	}
 
 	// Event loop: execute decided slots in order, schedule consensus work, then sleep until woken
@@ -29,10 +38,23 @@ public class MainLoop implements Runnable {
 			synchronized (this) {
 				this.has_work = false;
 			}
-			boolean progressed = this.ordered_executor.drain () > 0;
-			progressed = this.scheduleConsensus () || progressed;
-			if (!progressed)
-				this.waitForWork (this.nextRetryDelayMillis ());
+			try {
+				boolean progressed = this.ordered_executor.drain () > 0;
+				progressed = this.scheduleConsensus () || progressed;
+				if (!progressed)
+					this.waitForWork (this.nextRetryDelayMillis ());
+			} catch (RejectedExecutionException e) {
+				// gRPC refuses new calls once its channel is shut down: this replica is going down.
+				// The interrupt that should end the loop can be lost while waiting for replies.
+				break;
+			} catch (RuntimeException e) {
+				// Unexpected, so this replica's Paxos state can no longer be trusted: stop instead of
+				// carrying on. The server process exits like any crashed replica (see DidaTradeServer).
+				System.err.println ("MainLoop: unexpected error, stopping: " + e);
+				e.printStackTrace ();
+				this.fatal_handler.run ();
+				break;
+			}
 		}
 		this.pipeline.shutdown ();
 	}
