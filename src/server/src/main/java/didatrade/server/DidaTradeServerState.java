@@ -173,8 +173,6 @@ public final class DidaTradeServerState {
 		if (this.scheduler.isacceptor (this.my_id, ballot) && ballot >= this.current_ballot) {
 			this.setCurrentBallot (ballot);
 			accepted = entry.accept (ballot, value);
-			if (accepted)
-				entry.noteClassicAcceptance (value);
 		}
 		return new PhaseTwoState (accepted, this.current_ballot);
 	}

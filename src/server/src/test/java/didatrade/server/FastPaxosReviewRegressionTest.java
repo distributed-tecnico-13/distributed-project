@@ -29,24 +29,26 @@ class FastPaxosReviewRegressionTest {
 
 	@Test
 	void failedReproposalOfDecidedSlotCanRetryInSameBallot () {
-		PaxosInstance slot = new PaxosInstance (0);
+		PaxosLog log = new PaxosLog ();
+		PaxosInstance slot = log.testAndSetEntry (0);
 		assertTrue (slot.decide (0, 100));
-		assertTrue (slot.tryClaim (1, System.nanoTime ()));
-		assertEquals (100, slot.pinPhaseTwoValue (1, 100));
+		assertTrue (log.tryClaim (slot, 1, System.nanoTime ()));
+		assertEquals (100, log.pinPhaseTwoValue (slot, 1, 100));
 		// RPC failure: Phase 2 did not obtain a quorum.
-		slot.releaseClaim (1, 0);
-		assertTrue (slot.tryClaim (1, System.nanoTime ()));
-		assertEquals (100, slot.pinPhaseTwoValue (1, 999)); // cannot change within ballot
+		log.releaseClaim (slot, 1, 0);
+		assertTrue (log.tryClaim (slot, 1, System.nanoTime ()));
+		assertEquals (100, log.pinPhaseTwoValue (slot, 1, 999)); // cannot change within ballot
 	}
 
 	@Test
 	void confirmedHigherBallotReproposalDoesNotDependOnLearns () {
-		PaxosInstance slot = new PaxosInstance (0);
+		PaxosLog log = new PaxosLog ();
+		PaxosInstance slot = log.testAndSetEntry (0);
 		assertTrue (slot.decide (0, 100));
 		assertFalse (slot.decide (1, 100));
 		assertEquals (1, slot.getDecisionBallot ());
-		assertFalse (slot.tryClaim (1, System.nanoTime ()));
-		assertTrue (slot.tryClaim (2, System.nanoTime ()));
+		assertFalse (log.tryClaim (slot, 1, System.nanoTime ()));
+		assertTrue (log.tryClaim (slot, 2, System.nanoTime ()));
 	}
 
 	@Test
@@ -58,10 +60,10 @@ class FastPaxosReviewRegressionTest {
 		PaxosInstance slot = state.paxos_log.assignFastRequest (100);
 		assertTrue (slot.accept (0, 100));
 		assertTrue (state.processPhaseTwo (slot, 1, 200).accepted);
-		assertEquals (200, slot.getUnexecutedRequestId ());
+		assertEquals (200, slot.getUnexecutedRequestId (state.paxos_log.assignedRequest (0)));
 		PaxosInstance next = state.paxos_log.assignFastRequest (100);
 		assertEquals (1, next.getInstanceNb ());
-		assertEquals (100, next.getProposedRequestId ());
+		assertEquals (100, state.paxos_log.assignedRequest (1));
 	}
 
 	@Test

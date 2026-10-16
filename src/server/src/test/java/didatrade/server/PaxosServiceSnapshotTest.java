@@ -22,7 +22,7 @@ class PaxosServiceSnapshotTest {
 		PaxosInstance accepted0 = state.paxos_log.testAndSetEntry (0);
 		PaxosInstance candidate1 = state.paxos_log.testAndSetEntry (1);
 		PaxosInstance accepted2 = state.paxos_log.testAndSetEntry (2);
-		candidate1.setProposedRequestId (777);
+		state.paxos_log.adopt (1, 777);
 		assertTrue (state.processPhaseTwo (accepted0, 2, 101).accepted);
 		assertTrue (state.processPhaseTwo (accepted2, 4, 303).accepted);
 

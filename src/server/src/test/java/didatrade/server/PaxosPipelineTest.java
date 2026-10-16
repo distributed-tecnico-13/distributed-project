@@ -46,7 +46,7 @@ class PaxosPipelineTest {
 			for (int slot = 0; slot < 32; slot++) {
 				PaxosInstance entry = log.getEntry (slot);
 				assertNotNull (entry);
-				assertTrue (assigned.add (entry.getProposedRequestId ()));
+				assertTrue (assigned.add (log.assignedRequest (slot)));
 			}
 			assertEquals (32, assigned.size ());
 		} finally {
@@ -66,7 +66,7 @@ class PaxosPipelineTest {
 		log.testAndSetEntry (0).decide (5, 100);
 
 		log.assignPendingRequests (history, 0, 2);
-		assertEquals (200, log.getEntry (1).getProposedRequestId ());
+		assertEquals (200, log.assignedRequest (1));
 	}
 
 	// A request that arrives after a free slot was seen must still take that slot: a request
@@ -81,26 +81,27 @@ class PaxosPipelineTest {
 		history.addToPending (400, new RequestRecord (400));
 
 		log.assignPendingRequests (history, 0, 3);
-		assertEquals (200, log.getEntry (0).getProposedRequestId ());
-		assertEquals (100, log.getEntry (1).getProposedRequestId ());
-		assertEquals (300, log.getEntry (2).getProposedRequestId ());
+		assertEquals (200, log.assignedRequest (0));
+		assertEquals (100, log.assignedRequest (1));
+		assertEquals (300, log.assignedRequest (2));
 		assertNull (log.getEntry (3));
 	}
 
 	@Test
 	void onlyOneWorkerCanClaimASlot () throws Exception {
-		PaxosInstance entry = new PaxosInstance (0);
-		entry.setProposedRequestId (100);
+		PaxosLog log = new PaxosLog ();
+		PaxosInstance entry = log.testAndSetEntry (0);
+		log.adopt (0, 100);
 		ExecutorService workers = Executors.newFixedThreadPool (2);
 		CountDownLatch start = new CountDownLatch (1);
 		try {
 			var first = workers.submit ( () -> {
 				await (start);
-				return entry.tryClaim (5, 1000);
+				return log.tryClaim (entry, 5, 1000);
 			});
 			var second = workers.submit ( () -> {
 				await (start);
-				return entry.tryClaim (5, 1000);
+				return log.tryClaim (entry, 5, 1000);
 			});
 			start.countDown ();
 			assertTrue (first.get (2, TimeUnit.SECONDS) ^ second.get (2, TimeUnit.SECONDS));
@@ -113,11 +114,11 @@ class PaxosPipelineTest {
 	void adoptOverwritesAStaleUndecidedCandidateWithAFreshlyDiscoveredValue () {
 		PaxosLog log = new PaxosLog ();
 		assertTrue (log.adopt (5, 301));
-		assertEquals (301, log.getEntry (5).getProposedRequestId ());
+		assertEquals (301, log.assignedRequest (5));
 
 		assertTrue (log.adopt (5, 301)); // idempotent re-adopt of the same value
 		assertTrue (log.adopt (5, 302)); // a newer Phase 1 discovery overrides the stale candidate
-		assertEquals (302, log.getEntry (5).getProposedRequestId ());
+		assertEquals (302, log.assignedRequest (5));
 	}
 
 	@Test
@@ -126,8 +127,8 @@ class PaxosPipelineTest {
 		assertTrue (log.adopt (5, 301));
 
 		assertTrue (log.adopt (6, 301));
-		assertEquals (301, log.getEntry (6).getProposedRequestId ());
-		assertEquals (301, log.getEntry (5).getProposedRequestId ());
+		assertEquals (301, log.assignedRequest (6));
+		assertEquals (301, log.assignedRequest (5));
 	}
 
 	// Phase 1 for instance 6 must be free to discover the same request already decided
@@ -138,7 +139,7 @@ class PaxosPipelineTest {
 		log.testAndSetEntry (5).decide (3, 301);
 
 		assertTrue (log.adopt (6, 301));
-		assertEquals (301, log.getEntry (6).getProposedRequestId ());
+		assertEquals (301, log.assignedRequest (6));
 	}
 
 	@Test
@@ -153,31 +154,34 @@ class PaxosPipelineTest {
 
 	@Test
 	void claimedSlotCannotBeTakenEvenAfterAnyRetryDeadline () {
-		PaxosInstance entry = new PaxosInstance (0);
-		entry.setProposedRequestId (100);
-		assertTrue (entry.tryClaim (5, 0));
-		assertFalse (entry.tryClaim (5, Long.MAX_VALUE));
+		PaxosLog log = new PaxosLog ();
+		PaxosInstance entry = log.testAndSetEntry (0);
+		log.adopt (0, 100);
+		assertTrue (log.tryClaim (entry, 5, 0));
+		assertFalse (log.tryClaim (entry, 5, Long.MAX_VALUE));
 	}
 
 	@Test
 	void failedAttemptRetriesAfterBackoffWithoutAnotherWakeup () {
-		PaxosInstance entry = new PaxosInstance (0);
-		entry.setProposedRequestId (100);
-		assertTrue (entry.tryClaim (5, 1000));
-		long deadline = entry.releaseClaim (5, TimeUnit.MILLISECONDS.toNanos (200));
+		PaxosLog log = new PaxosLog ();
+		PaxosInstance entry = log.testAndSetEntry (0);
+		log.adopt (0, 100);
+		assertTrue (log.tryClaim (entry, 5, 1000));
+		long deadline = log.releaseClaim (entry, 5, TimeUnit.MILLISECONDS.toNanos (200));
 
-		assertFalse (entry.tryClaim (5, deadline - 1));
-		assertEquals (1, entry.retryDelayMillis (5, deadline - 1));
-		assertTrue (entry.tryClaim (5, deadline));
+		assertFalse (log.tryClaim (entry, 5, deadline - 1));
+		assertEquals (1, log.retryDelayMillis (entry, 5, deadline - 1));
+		assertTrue (log.tryClaim (entry, 5, deadline));
 	}
 
 	@Test
 	void newerBallotCanClaimImmediatelyAfterFailedAttempt () {
-		PaxosInstance entry = new PaxosInstance (0);
-		entry.setProposedRequestId (100);
-		assertTrue (entry.tryClaim (5, 1000));
-		long deadline = entry.releaseClaim (5, TimeUnit.MILLISECONDS.toNanos (200));
-		assertTrue (entry.tryClaim (8, deadline - 1));
+		PaxosLog log = new PaxosLog ();
+		PaxosInstance entry = log.testAndSetEntry (0);
+		log.adopt (0, 100);
+		assertTrue (log.tryClaim (entry, 5, 1000));
+		long deadline = log.releaseClaim (entry, 5, TimeUnit.MILLISECONDS.toNanos (200));
+		assertTrue (log.tryClaim (entry, 8, deadline - 1));
 	}
 
 	@Test

@@ -10,58 +10,62 @@ class PaxosReproposalTest {
 
 	@Test
 	void decidedSlotRetriesFailedPhaseTwoButNotSuccessfulReproposal () {
-		PaxosInstance entry = new PaxosInstance (3);
+		PaxosLog log = new PaxosLog ();
+		PaxosInstance entry = log.testAndSetEntry (3);
 		assertTrue (entry.decide (4, 101));
 
-		assertTrue (entry.tryClaim (5, 0));
-		assertEquals (101, entry.getValueToPropose ());
-		assertEquals (101, entry.pinPhaseTwoValue (5, entry.getValueToPropose ()));
-		assertFalse (entry.tryClaim (5, Long.MAX_VALUE)); // another worker cannot claim it
+		assertTrue (log.tryClaim (entry, 5, 0));
+		assertEquals (101, log.valueToPropose (entry));
+		assertEquals (101, log.pinPhaseTwoValue (entry, 5, log.valueToPropose (entry)));
+		assertFalse (log.tryClaim (entry, 5, Long.MAX_VALUE)); // another worker cannot claim it
 
 		// Phase 2 failed before a quorum: release the worker but preserve the value.
-		long retry_at = entry.releaseClaim (5, 1_000_000_000L);
-		assertFalse (entry.tryClaim (5, retry_at - 1)); // backoff still active
-		assertTrue (entry.tryClaim (5, retry_at)); // same-ballot retry allowed
-		assertEquals (101, entry.pinPhaseTwoValue (5, 999)); // value cannot change
+		long retry_at = log.releaseClaim (entry, 5, 1_000_000_000L);
+		assertFalse (log.tryClaim (entry, 5, retry_at - 1)); // backoff still active
+		assertTrue (log.tryClaim (entry, 5, retry_at)); // same-ballot retry allowed
+		assertEquals (101, log.pinPhaseTwoValue (entry, 5, 999)); // value cannot change
 
 		// Successful higher-ballot reproposal must not be repeated in this ballot.
 		assertFalse (entry.decide (5, 101)); // slot was already decided
 		assertEquals (5, entry.getDecisionBallot ());
-		entry.releaseClaim (5, 0);
-		assertFalse (entry.tryClaim (5, Long.MAX_VALUE));
-		assertTrue (entry.tryClaim (6, Long.MAX_VALUE));
-		assertEquals (101, entry.pinPhaseTwoValue (6, entry.getValueToPropose ()));
+		log.releaseClaim (entry, 5, 0);
+		assertFalse (log.tryClaim (entry, 5, Long.MAX_VALUE));
+		assertTrue (log.tryClaim (entry, 6, Long.MAX_VALUE));
+		assertEquals (101, log.pinPhaseTwoValue (entry, 6, log.valueToPropose (entry)));
 	}
 
 	@Test
 	void decidedSlotAlwaysReproposesItsChosenValueNotAStaleLocalCandidate () {
-		PaxosInstance entry = new PaxosInstance (2);
-		entry.setProposedRequestId (999);
+		PaxosLog log = new PaxosLog ();
+		PaxosInstance entry = log.testAndSetEntry (2);
+		log.adopt (2, 999);
 		assertTrue (entry.decide (4, 101));
 
-		assertEquals (101, entry.getValueToPropose ());
-		entry.setProposedRequestId (888);
-		assertEquals (101, entry.getValueToPropose ());
-		assertEquals (999, entry.getProposedRequestId ());
+		assertEquals (101, log.valueToPropose (entry));
+		log.adopt (2, 888);
+		assertEquals (101, log.valueToPropose (entry));
+		assertEquals (999, log.assignedRequest (2));
 	}
 
 	@Test
 	void sameBallotPhaseTwoRetryIsIdempotentlyLockedToFirstValue () {
-		PaxosInstance entry = new PaxosInstance (0);
+		PaxosLog log = new PaxosLog ();
+		PaxosInstance entry = log.testAndSetEntry (0);
 
-		assertEquals (101, entry.pinPhaseTwoValue (5, 101));
-		assertEquals (101, entry.pinPhaseTwoValue (5, 202));
-		assertEquals (303, entry.pinPhaseTwoValue (6, 303));
+		assertEquals (101, log.pinPhaseTwoValue (entry, 5, 101));
+		assertEquals (101, log.pinPhaseTwoValue (entry, 5, 202));
+		assertEquals (303, log.pinPhaseTwoValue (entry, 6, 303));
 	}
 
 	@Test
 	void restartingOlderPhaseTwoBallotIsRejectedLocally () {
-		PaxosInstance entry = new PaxosInstance (0);
-		entry.pinPhaseTwoValue (7, 101);
+		PaxosLog log = new PaxosLog ();
+		PaxosInstance entry = log.testAndSetEntry (0);
+		log.pinPhaseTwoValue (entry, 7, 101);
 
 		boolean threw = false;
 		try {
-			entry.pinPhaseTwoValue (6, 101);
+			log.pinPhaseTwoValue (entry, 6, 101);
 		} catch (IllegalStateException e) {
 			threw = true;
 		}

@@ -25,7 +25,7 @@ class PaxosBallotCompletionRegressionTest {
 		assertTrue (slot.isDecided ());
 		assertEquals (1, slot.getDecisionBallot ());
 		assertEquals (1, state.getCompletedBallot ());
-		assertFalse (slot.tryClaim (1, System.nanoTime ()));
+		assertFalse (state.paxos_log.tryClaim (slot, 1, System.nanoTime ()));
 	}
 
 	@Test
