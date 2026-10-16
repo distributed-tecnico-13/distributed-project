@@ -102,6 +102,11 @@ public final class DidaTradeServerState {
 		return this.main_loop;
 	}
 
+	public void wakeMainLoop () {
+		if (TestHelper.hasMainLoop (this))
+			this.main_loop.wakeup ();
+	}
+
 	public synchronized int getCurrentBallot () {
 		return this.current_ballot;
 	}
@@ -170,7 +175,8 @@ public final class DidaTradeServerState {
 		return ballot >= 0 && ballot == current_ballot && leader == server_id;
 	}
 
-	// Test-only construction avoids starting RPC channels and the MainLoop thread.
+	// Test-only construction avoids starting RPC channels and the MainLoop thread;
+	// the checks this makes necessary are collected in TestHelper.
 	DidaTradeServerState() {
 		this.current_ballot = 0;
 		this.debug_state = new DebugState ();
@@ -207,7 +213,7 @@ public final class DidaTradeServerState {
 
 	public synchronized boolean isFastRoundOpen (int ballot) {
 		return this.fastpaxos_on && ballot == this.current_ballot
-				&& this.scheduler != null && this.scheduler.fastpaxos (ballot);
+				&& TestHelper.hasScheduler (this) && this.scheduler.fastpaxos (ballot);
 	}
 
 	public synchronized boolean canCoordinateFastRound (int ballot) {
@@ -216,7 +222,7 @@ public final class DidaTradeServerState {
 	}
 
 	public synchronized boolean canOpenFastRound (int ballot) {
-		return this.scheduler != null && ballot >= this.current_ballot
+		return TestHelper.hasScheduler (this) && ballot >= this.current_ballot
 				&& this.scheduler.fastpaxos (ballot)
 				&& this.scheduler.isacceptor (this.my_id, ballot);
 	}
@@ -269,7 +275,7 @@ public final class DidaTradeServerState {
 	}
 
 	public synchronized void updateCompletedBallot (int ballot) {
-		if (this.scheduler != null && this.scheduler.dynamicMembership ())
+		if (TestHelper.hasScheduler (this) && this.scheduler.dynamicMembership ())
 			return; // Dynamic completion is acknowledged only after state transfer.
 
 		ballot = this.findMaxDecidedBallot ();

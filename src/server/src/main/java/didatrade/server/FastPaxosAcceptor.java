@@ -10,8 +10,7 @@ public final class FastPaxosAcceptor {
 			return false;
 		PaxosLearnerNotifier.notifyAccepted (
 				state, vote.instance, vote.ballot, request_id);
-		if (state.main_loop != null)
-			state.main_loop.wakeup ();
+		state.wakeMainLoop ();
 		return true;
 	}
 

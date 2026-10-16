@@ -104,8 +104,8 @@ public class DidaTradePaxosServiceImpl extends DidaTradePaxosServiceGrpc.DidaTra
 				.setServerid (this.server_state.getMyId ()).setAccepted (accepted)
 				.setMaxballot (this.server_state.getCurrentBallot ()).build ());
 		observer.onCompleted ();
-		if (accepted && this.server_state.getMainLoop () != null)
-			this.server_state.getMainLoop ().wakeup ();
+		if (accepted)
+			this.server_state.wakeMainLoop ();
 	}
 
 	@Override

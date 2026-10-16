@@ -132,8 +132,7 @@ final class PaxosProposer {
 		}
 		if (processor.getMaxballot () > this.server_state.getCurrentBallot ()) {
 			this.server_state.setCurrentBallot (processor.getMaxballot ());
-			if (this.server_state.main_loop != null)
-				this.server_state.main_loop.wakeup ();
+			this.server_state.wakeMainLoop ();
 		}
 		return false;
 	}
@@ -220,8 +219,7 @@ final class PaxosProposer {
 		PhaseOneResult result = new PhaseOneResult (processor);
 		if (result.aborted && result.maxballot > this.server_state.getCurrentBallot ()) {
 			this.server_state.setCurrentBallot (result.maxballot);
-			if (this.server_state.main_loop != null)
-				this.server_state.main_loop.wakeup ();
+			this.server_state.wakeMainLoop ();
 		}
 		return result;
 	}
@@ -250,8 +248,7 @@ final class PaxosProposer {
 			return false;
 		if (processor.getMaxballot () > this.server_state.getCurrentBallot ()) {
 			this.server_state.setCurrentBallot (processor.getMaxballot ());
-			if (this.server_state.main_loop != null)
-				this.server_state.main_loop.wakeup ();
+			this.server_state.wakeMainLoop ();
 		}
 		return true;
 	}
