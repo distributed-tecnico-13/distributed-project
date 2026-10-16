@@ -1,14 +1,8 @@
 package didatrade.server;
 
-import java.util.*;
-
 import didatrade.core.*;
 import didatrade.configs.*;
 
-import didatrade.DidaTradePaxosServiceGrpc;
-
-import io.grpc.ManagedChannel;
-import io.grpc.ManagedChannelBuilder;
 import didatrade.server.request.RequestHistory;
 
 /**
@@ -28,11 +22,7 @@ public final class DidaTradeServerState {
 	RequestHistory req_history;
 	PaxosLog paxos_log;
 
-	List<Integer> all_participants;
-	int n_participants;
-	String[] targets;
-	ManagedChannel[] channels;
-	DidaTradePaxosServiceGrpc.DidaTradePaxosServiceStub[] async_stubs;
+	PeerRpc peer_rpc;
 
 	private int current_ballot;
 	private int last_completed_ballot = -1;
@@ -66,24 +56,7 @@ public final class DidaTradeServerState {
 		this.trade_manager.populate (DEFAULT_POPULATION);
 
 		// init comms
-		this.all_participants = this.scheduler.allparticipants ();
-		this.n_participants = all_participants.size ();
-
-		this.targets = new String[this.n_participants];
-		for (int i = 0; i < this.n_participants; i++) {
-			int target_port = this.base_port + all_participants.get (i);
-			this.targets[i] = new String ();
-			this.targets[i] = "localhost:" + target_port;
-			System.out.printf ("targets[%d] = %s%n", i, targets[i]);
-		}
-
-		this.channels = new ManagedChannel[this.n_participants];
-		for (int i = 0; i < this.n_participants; i++)
-			this.channels[i] = ManagedChannelBuilder.forTarget (this.targets[i]).usePlaintext ().build ();
-
-		this.async_stubs = new DidaTradePaxosServiceGrpc.DidaTradePaxosServiceStub[this.n_participants];
-		for (int i = 0; i < this.n_participants; i++)
-			this.async_stubs[i] = DidaTradePaxosServiceGrpc.newStub (this.channels[i]);
+		this.peer_rpc = new PeerRpc (this.base_port, this.scheduler.allparticipants ());
 
 		// start worker
 		this.main_loop_worker = new Thread (main_loop);

@@ -377,9 +377,10 @@ class DynamicMembershipIntegrationTest {
 				channels[id] = ManagedChannelBuilder.forAddress ("127.0.0.1", servers[id].getPort ()).usePlaintext ().build ();
 			}
 			for (DidaTradeServerState s : states) {
-				s.async_stubs = new DidaTradePaxosServiceGrpc.DidaTradePaxosServiceStub[7];
+				DidaTradePaxosServiceGrpc.DidaTradePaxosServiceStub[] stubs = new DidaTradePaxosServiceGrpc.DidaTradePaxosServiceStub[7];
 				for (int id = 0; id < 7; id++)
-					s.async_stubs[id] = DidaTradePaxosServiceGrpc.newStub (channels[id]);
+					stubs[id] = DidaTradePaxosServiceGrpc.newStub (channels[id]);
+				s.peer_rpc = new PeerRpc (stubs);
 			}
 			for (int id = 0; id < 7; id++)
 				startLeader (id);

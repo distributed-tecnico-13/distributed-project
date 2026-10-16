@@ -1,12 +1,6 @@
 package didatrade.server;
 
-import java.util.List;
-import java.util.concurrent.TimeUnit;
-
-import didatrade.DidaTradePaxos;
-import io.grpc.Context;
-
-/** Acceptors announce their votes to the learners (Learn RPC). */
+/** Acceptors announce their votes to the learners (Learn RPC, sent by PeerRpc). */
 public final class PaxosLearnerNotifier {
 	private PaxosLearnerNotifier() {
 	}
@@ -20,37 +14,6 @@ public final class PaxosLearnerNotifier {
 	// a Phase 2 accept (classic quorum); otherwise it is a Fast vote (Fast quorum).
 	public static void notifyAccepted (
 			DidaTradeServerState state, int instance, int ballot, int value, boolean classic) {
-		Context context = Context.current ().fork ();
-		context.run ( () -> {
-			List<Integer> learners = state.scheduler.learners (ballot);
-			DidaTradePaxos.LearnRequest request = DidaTradePaxos.LearnRequest.newBuilder ()
-					.setInstance (instance)
-					.setValue (value)
-					.setBallot (ballot)
-					.setServerid (state.my_id)
-					.setClassic (classic)
-					.build ();
-
-			System.out.println ("Paxos acceptor: going to notify learners for entry "
-					+ instance + " with timestamp " + ballot + " request = " + request);
-
-			for (int learner : learners) {
-				state.async_stubs[learner]
-						.withDeadlineAfter (2, TimeUnit.SECONDS)
-						.learn (request, new io.grpc.stub.StreamObserver<DidaTradePaxos.LearnReply> () {
-							@Override
-							public void onNext (DidaTradePaxos.LearnReply value) {
-							}
-
-							@Override
-							public void onError (Throwable throwable) {
-							}
-
-							@Override
-							public void onCompleted () {
-							}
-						});
-			}
-		});
+		state.peer_rpc.learn (state.scheduler.learners (ballot), state.my_id, instance, ballot, value, classic);
 	}
 }

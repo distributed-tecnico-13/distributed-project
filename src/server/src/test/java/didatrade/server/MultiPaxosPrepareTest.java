@@ -137,7 +137,7 @@ class MultiPaxosPrepareTest {
 		state.scheduler = new ConfigurationScheduler ('A');
 		state.paxos_log = new PaxosLog ();
 		state.req_history = new RequestHistory ();
-		state.async_stubs = new DidaTradePaxosServiceGrpc.DidaTradePaxosServiceStub[3];
+		DidaTradePaxosServiceGrpc.DidaTradePaxosServiceStub[] stubs = new DidaTradePaxosServiceGrpc.DidaTradePaxosServiceStub[3];
 		for (int server_id = 0; server_id < 3; server_id++) {
 			Server server = ServerBuilder.forPort (0).addService (factory.create (server_id)).build ().start ();
 			this.servers.add (server);
@@ -146,8 +146,9 @@ class MultiPaxosPrepareTest {
 					.usePlaintext ()
 					.build ();
 			this.channels.add (channel);
-			state.async_stubs[server_id] = DidaTradePaxosServiceGrpc.newStub (channel);
+			stubs[server_id] = DidaTradePaxosServiceGrpc.newStub (channel);
 		}
+		state.peer_rpc = new PeerRpc (stubs);
 		return state;
 	}
 

@@ -348,9 +348,9 @@ class Integration_MultiPaxosClusterTest {
 		// reach the restored replica only after that delay is cleared.
 		void reconnectPeers () {
 			for (DidaTradeServerState state : this.states) {
-				if (state.channels == null)
+				if (state.peer_rpc == null || state.peer_rpc.channels == null)
 					continue;
-				for (ManagedChannel channel : state.channels)
+				for (ManagedChannel channel : state.peer_rpc.channels)
 					channel.resetConnectBackoff ();
 			}
 		}
@@ -450,8 +450,8 @@ class Integration_MultiPaxosClusterTest {
 				if (state.main_loop_worker != null)
 					state.main_loop_worker.interrupt ();
 
-				if (state.channels != null) {
-					for (ManagedChannel channel : state.channels) {
+				if (state.peer_rpc != null && state.peer_rpc.channels != null) {
+					for (ManagedChannel channel : state.peer_rpc.channels) {
 						if (channel != null)
 							channel.shutdownNow ();
 					}
