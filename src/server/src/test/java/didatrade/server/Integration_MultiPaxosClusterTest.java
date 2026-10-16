@@ -99,8 +99,8 @@ class Integration_MultiPaxosClusterTest {
 
 			assertTrue (awaitCondition ( () -> cluster.states[1].hasRunPhaseOne (1),
 					5, TimeUnit.SECONDS));
-			assertTrue (awaitCondition ( () -> cluster.states[0].paxos_log.getEntry (0).getAcceptedBallot () >= 1
-					&& cluster.states[1].paxos_log.getEntry (0).getAcceptedBallot () >= 1,
+			assertTrue (awaitCondition ( () -> cluster.states[0].paxos_log.getEntry (0).getAcceptedSnapshot ().valballot >= 1
+					&& cluster.states[1].paxos_log.getEntry (0).getAcceptedSnapshot ().valballot >= 1,
 					5, TimeUnit.SECONDS));
 
 			for (DidaTradeServerState state : cluster.states) {

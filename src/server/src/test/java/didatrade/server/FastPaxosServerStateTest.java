@@ -41,8 +41,8 @@ class FastPaxosServerStateTest {
 		assertTrue (vote.accepted);
 		assertEquals (0, vote.ballot);
 		assertEquals (0, vote.instance);
-		assertEquals (100, state.paxos_log.getEntry (0).getAcceptedValue ());
-		assertEquals (0, state.paxos_log.getEntry (0).getAcceptedBallot ());
+		assertEquals (100, state.paxos_log.getEntry (0).getAcceptedSnapshot ().value);
+		assertEquals (0, state.paxos_log.getEntry (0).getAcceptedSnapshot ().valballot);
 	}
 
 	@Test

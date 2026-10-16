@@ -99,10 +99,10 @@ class FastPaxosReviewRegressionTest {
 		assertTrue (state.openFastRound (0));
 		state.fastVote (100);
 		assertEquals (0, state.getCurrentBallot ());
-		assertEquals (100, state.paxos_log.getEntry (0).getAcceptedValue ());
+		assertEquals (100, state.paxos_log.getEntry (0).getAcceptedSnapshot ().value);
 		state.setCurrentBallot (1);
 		assertEquals (1, state.getCurrentBallot ());
-		assertEquals (100, state.paxos_log.getEntry (0).getAcceptedValue ());
+		assertEquals (100, state.paxos_log.getEntry (0).getAcceptedSnapshot ().value);
 	}
 
 	@Test
@@ -113,7 +113,7 @@ class FastPaxosReviewRegressionTest {
 		PaxosInstance entry = log.testAndSetEntry (4);
 		assertTrue (entry.accept (0, 234));
 		assertTrue (log.adopt (4, 345));
-		assertEquals (234, entry.getAcceptedValue ());
-		assertEquals (0, entry.getAcceptedBallot ());
+		assertEquals (234, entry.getAcceptedSnapshot ().value);
+		assertEquals (0, entry.getAcceptedSnapshot ().valballot);
 	}
 }

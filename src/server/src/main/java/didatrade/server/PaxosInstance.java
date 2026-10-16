@@ -54,14 +54,6 @@ public class PaxosInstance {
 		return this.accepted.exists ();
 	}
 
-	public synchronized int getAcceptedValue () {
-		return this.accepted.value;
-	}
-
-	public synchronized int getAcceptedBallot () {
-		return this.accepted.ballot;
-	}
-
 	// Value and ballot read together, so Phase 1 never pairs a value with the wrong ballot.
 	public synchronized AcceptedSnapshot getAcceptedSnapshot () {
 		return new AcceptedSnapshot (this.accepted.value, this.accepted.ballot);
@@ -70,48 +62,22 @@ public class PaxosInstance {
 	// ---- Learner: votes from the acceptors ----
 
 	// Learner: counts one acceptor's vote. True if this vote newly decided the slot or raised its
-	// decision ballot.
+	// decision ballot. The vote that completes a quorum for a value decides the slot, so a later
+	// quorum can only confirm the same value in a higher ballot (or conflict and be rejected).
 	public synchronized boolean recordLearn (
 			int ballot, int value, int server_id, int quorum) {
-		if (!this.recordVote (ballot, value, server_id, quorum))
-			return false;
-		return this.updateInstanceState (quorum);
-	}
-
-	// Returns true once this vote is stored and its value has a quorum.
-	private boolean recordVote (int ballot, int value, int server_id, int quorum) {
+		// E.g. a late minority vote in a Fast ballot, after the slot was decided on another value.
 		if (this.decided && value != this.decided_value)
 			return false;
 		if (!this.votes.recordVote (ballot, value, server_id))
 			return false;
-		return this.votes.acceptCount (ballot, value) >= quorum;
-	}
-
-	// Decides on the value that has a quorum in the highest ballot
-	private boolean updateInstanceState (int quorum) {
-		int highest_ballot = this.votes.findHighestBallotWithQuorum (quorum);
-		if (highest_ballot < 0)
+		if (this.votes.acceptCount (ballot, value) < quorum)
 			return false;
-		int chosen_value = this.votes.valueWithQuorum (highest_ballot, quorum);
-		if (chosen_value == CommandIdKind.ABSENT_ID)
-			return false;
-		return this.confirm (highest_ballot, chosen_value);
-	}
-
-	public synchronized int findHighestBallotWithQuorum (int quorum) {
-		return this.votes.findHighestBallotWithQuorum (quorum);
+		return this.confirm (ballot, value);
 	}
 
 	public synchronized int getAcceptCount (int ballot) {
 		return this.votes.acceptCount (ballot);
-	}
-
-	public synchronized int getAcceptCount (int ballot, int value) {
-		return this.votes.acceptCount (ballot, value);
-	}
-
-	public synchronized boolean cannotReachQuorum (int ballot, int quorum, int n_acceptors) {
-		return this.votes.cannotReachQuorum (ballot, quorum, n_acceptors);
 	}
 
 	// Not proof that nothing was chosen: on a 3-1 split the missing acceptor may still
@@ -207,12 +173,8 @@ public class PaxosInstance {
 
 	// A claim belongs to one local worker; it is unrelated to Paxos acceptance.
 	public synchronized boolean tryClaim (int ballot, long now_nanos) {
-		if (this.proposal.claimed || CommandIdKind.isAbsent (this.getValueToPropose ()))
-			return false;
-		if (this.decided && this.decision_ballot >= ballot)
-			return false;
-		if (this.proposal.retry_ballot == ballot
-				&& now_nanos < this.proposal.retry_after_nanos)
+		// Claimable exactly when there is nothing left to wait for (see retryDelayMillis).
+		if (this.retryDelayMillis (ballot, now_nanos) != 0)
 			return false;
 		this.proposal.claimed = true;
 		return true;
@@ -227,7 +189,8 @@ public class PaxosInstance {
 		return this.proposal.retry_after_nanos;
 	}
 
-	// -1 means no retry is scheduled; a positive result is a bounded wait.
+	// Milliseconds until this slot may be claimed in this ballot: 0 means now, a positive result is a
+	// bounded wait, -1 means never (held by a worker, already decided at this ballot, or no value).
 	public synchronized long retryDelayMillis (int ballot, long now_nanos) {
 		if (this.proposal.claimed || (this.decided && this.decision_ballot >= ballot)
 				|| CommandIdKind.isAbsent (this.getValueToPropose ()))
@@ -300,24 +263,6 @@ public class PaxosInstance {
 			if (values == null || !values.containsKey (value))
 				return 0;
 			return values.get (value).accepted_by.size ();
-		}
-
-		int findHighestBallotWithQuorum (int quorum) {
-			int result = -1;
-			for (int ballot : this.learn_votes.keySet ())
-				if (this.acceptCount (ballot) >= quorum && ballot > result)
-					result = ballot;
-			return result;
-		}
-
-		int valueWithQuorum (int ballot, int quorum) {
-			Map<Integer, LearnVotes> values = this.learn_votes.get (ballot);
-			if (values == null)
-				return CommandIdKind.ABSENT_ID;
-			for (Map.Entry<Integer, LearnVotes> entry : values.entrySet ())
-				if (entry.getValue ().accepted_by.size () >= quorum)
-					return entry.getKey ();
-			return CommandIdKind.ABSENT_ID;
 		}
 
 		// recordVote() keeps one vote per acceptor, so the vote sets are disjoint.

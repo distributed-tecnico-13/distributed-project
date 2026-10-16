@@ -116,7 +116,7 @@ class NoopTest {
 	void decidedNoopIsTheCommandId () {
 		PaxosInstance accepted = new PaxosInstance (0);
 		accepted.accept (5, CommandIdKind.NOOP_ID);
-		assertEquals (CommandIdKind.NOOP_ID, accepted.getAcceptedValue ());
+		assertEquals (CommandIdKind.NOOP_ID, accepted.getAcceptedSnapshot ().value);
 		assertFalse (accepted.isNoop ());
 		accepted.decide (5, CommandIdKind.NOOP_ID);
 		assertTrue (accepted.isNoop ());
@@ -124,7 +124,7 @@ class NoopTest {
 		PaxosInstance chosen = new PaxosInstance (1);
 		chosen.decide (5, CommandIdKind.NOOP_ID);
 		assertTrue (chosen.isNoop ());
-		assertEquals (0, chosen.getAcceptedValue ());
+		assertEquals (0, chosen.getAcceptedSnapshot ().value);
 	}
 
 	@Test
@@ -135,7 +135,7 @@ class NoopTest {
 		assertTrue (entry.recordLearn (5, CommandIdKind.NOOP_ID, 1, 2));
 		assertTrue (entry.isNoop ());
 		assertEquals (CommandIdKind.NOOP_ID, entry.getDecidedValue ());
-		assertEquals (0, entry.getAcceptedValue ());
+		assertEquals (0, entry.getAcceptedSnapshot ().value);
 	}
 
 	@Test

@@ -134,27 +134,26 @@ class PaxosInstanceLearnTest {
 	void fastBallotTracksCompetingValuesIndependently () {
 		PaxosInstance entry = new PaxosInstance (0);
 
+		// A vote for another value does not count towards the first value's quorum.
 		assertFalse (entry.recordLearn (5, 100, 0, 2));
 		assertFalse (entry.recordLearn (5, 200, 1, 2));
-		assertEquals (1, entry.getAcceptCount (5, 100));
-		assertEquals (1, entry.getAcceptCount (5, 200));
 		assertFalse (entry.isDecided ());
 
 		assertTrue (entry.recordLearn (5, 100, 2, 2));
-		assertEquals (2, entry.getAcceptCount (5, 100));
 		assertEquals (100, entry.getDecidedValue ());
 	}
 
+	// Quorum 3 of 3: the quorum stays reachable exactly as long as all missing acceptors could
+	// still join the leading value.
 	@Test
 	void fastBallotCanDetectThatNoValueCanStillReachQuorum () {
 		PaxosInstance entry = new PaxosInstance (0);
 
-		assertFalse (entry.recordLearn (5, 100, 0, 2));
-		assertFalse (entry.recordLearn (5, 200, 1, 2));
-		assertFalse (entry.cannotReachQuorum (5, 2, 3));
+		assertFalse (entry.recordLearn (5, 100, 0, 3));
+		assertFalse (entry.fastRoundCollided (5, 3, 3));
 
-		assertFalse (entry.recordLearn (5, 300, 2, 2));
-		assertTrue (entry.cannotReachQuorum (5, 2, 3));
+		assertFalse (entry.recordLearn (5, 200, 1, 3));
+		assertTrue (entry.fastRoundCollided (5, 3, 3));
 		assertFalse (entry.isDecided ());
 	}
 
@@ -185,10 +184,11 @@ class PaxosInstanceLearnTest {
 		PaxosInstance entry = new PaxosInstance (0);
 
 		assertFalse (entry.recordLearn (5, 100, 0, 2));
-		assertFalse (entry.recordLearn (5, 200, 0, 2));
+		assertFalse (entry.recordLearn (5, 200, 0, 2)); // same acceptor, ignored
 
-		assertEquals (1, entry.getAcceptCount (5, 100));
-		assertEquals (0, entry.getAcceptCount (5, 200));
+		// The ignored duplicate did not count as a second vote for 200: another acceptor's vote
+		// for 200 is only its first one.
+		assertFalse (entry.recordLearn (5, 200, 1, 2));
 		assertFalse (entry.isDecided ());
 	}
 
@@ -202,16 +202,6 @@ class PaxosInstanceLearnTest {
 
 		assertTrue (entry.isDecided ());
 		assertEquals (100, entry.getDecidedValue ());
-	}
-
-	@Test
-	void twoWaySplitIsStillRecoverableWhileThirdAcceptorIsMissing () {
-		PaxosInstance entry = new PaxosInstance (0);
-
-		assertFalse (entry.recordLearn (5, 100, 0, 2));
-		assertFalse (entry.recordLearn (5, 200, 1, 2));
-
-		assertFalse (entry.cannotReachQuorum (5, 2, 3));
 	}
 
 }

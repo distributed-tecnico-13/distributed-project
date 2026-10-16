@@ -30,7 +30,7 @@ class PaxosLogFastAllocationTest {
 
 		assertNotSame (first, second);
 		assertEquals (1, second.getInstanceNb ());
-		assertEquals (100, first.getAcceptedValue ());
+		assertEquals (100, first.getAcceptedSnapshot ().value);
 	}
 
 	@Test

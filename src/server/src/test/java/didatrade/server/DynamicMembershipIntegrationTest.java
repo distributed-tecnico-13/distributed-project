@@ -313,7 +313,7 @@ class DynamicMembershipIntegrationTest {
 			await ( () -> c.states[5].getLastExecutedInstance () >= 1);
 			long fastVotes = List.of (2, 3, 4, 5, 6).stream ().filter (id -> {
 				PaxosInstance e = c.states[id].paxos_log.getEntry (1);
-				return e != null && e.getAcceptedBallot () == 2 && e.getAcceptedValue () == 201;
+				return e != null && e.getAcceptedSnapshot ().valballot == 2 && e.getAcceptedSnapshot ().value == 201;
 			}).count ();
 			assertTrue (fastVotes >= 4, "new cohort did not use direct Fast voting");
 			assertEquals (200, c.states[5].getBalance (1, 771).balance ());
